@@ -1,11 +1,11 @@
-name: 법원경매 사진 재호스트 일괄 (매 2시간)
+name: 법원경매 사진 재호스트 일괄 (매시간 V2)
 
-# 매 2시간 KST 30분. court-photo-rehost — _photos URL이 courtauction 직링크(404)인 건만.
-# Playwright 사용. limit 8씩 12회/일 = 96건/일.
+# V2 강화: 매시간 KST 50분. limit 10씩 24회/일 = 240건/일.
+# court-photo-rehost는 fetch 기반(Playwright X)이라 차단 위험 낮음.
 
 on:
   schedule:
-    - cron: '30 */2 * * *'   # 매 2시간 30분 (00:30, 02:30, ..., 22:30 UTC)
+    - cron: '50 * * * *'   # 매시간 50분
   workflow_dispatch:
 
 concurrency:
@@ -35,4 +35,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-photo-rehost.js --upload --limit 8
+        run: node collectors/court-photo-rehost.js --upload --limit 10

@@ -1,11 +1,11 @@
-name: 법원경매 감정평가서 일괄 (매 4시간)
+name: 법원경매 감정평가서 일괄 (매 2시간 V2)
 
-# KST 02:00 / 06:00 / 10:00 / 14:00 / 18:00 / 22:00 (6회/일).
-# kapanet 외부 호출 — 법원 사이트 부담 없음. limit 15씩 6회 = 90건/일.
+# V2 강화: 매 2시간 KST. kapanet 외부 호출 (법원 사이트 부담 0).
+# limit 20씩 12회 = 240건/일.
 
 on:
   schedule:
-    - cron: '0 17,21,1,5,9,13 * * *'   # KST 02/06/10/14/18/22 (UTC 17/21/1/5/9/13)
+    - cron: '0 */2 * * *'   # 매 2시간
   workflow_dispatch:
 
 concurrency:
@@ -32,4 +32,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-docs-fetch.js --upload --limit 15
+        run: node collectors/court-docs-fetch.js --upload --limit 20

@@ -1,11 +1,12 @@
-name: 법원경매 문건/송달 일괄 (매시간)
+name: 법원경매 문건/송달 일괄 (매 30분 V2)
 
-# 매시간 KST 45분. docs-snap (문건/송달내역 캡처). limit 5씩 24회/일 = 120건/일.
-# Playwright 무거움 → 한 번 실행 약 5분 머묾.
+# V2 강화: 매 30분 KST. limit 10씩 48회/일 = 480건/일.
+# Playwright 무거움 → 한 번 실행 약 8~10분 머묾.
+# spcfc-bulk와 15분 시차 (큐잉 분산).
 
 on:
   schedule:
-    - cron: '45 * * * *'   # 매시간 45분 (spcfc-bulk와 30분 시차)
+    - cron: '15,45 * * * *'   # 매시간 15분, 45분
   workflow_dispatch:
 
 concurrency:
@@ -35,11 +36,11 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-docs-snap.js --upload --limit 5
+        run: node collectors/court-docs-snap.js --upload --limit 10
 
       - name: 차량 문건/송달 5건
         working-directory: scripts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-docs-snap.js --upload --category vehicle --limit 5
+        run: node collectors/court-docs-snap.js --upload --category vehicle --limit 10

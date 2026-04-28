@@ -10,7 +10,7 @@ name: 법원경매 자체처리 (사이트 호출 0)
 
 on:
   schedule:
-    - cron: '0 19 * * *'   # KST 04:00
+    - cron: '0 19,7 * * *'   # KST 04:00, 16:00 (V2 매일 2회)
   workflow_dispatch:
 
 concurrency:

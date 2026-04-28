@@ -1,12 +1,12 @@
-name: 법원경매 detail 일괄 (60일 윈도우)
+name: 법원경매 detail 일괄 (90일 윈도우 V2)
 
-# 매일 1회 KST 03:30. detail-collect 200건 — 가벼운 단계라 한 번에 큰 배치.
-# 60일 윈도우 + thumbnail_url IS NULL 매물 우선.
+# V2 강화: 매일 2회 KST 03:30 / 15:30. detail-collect 200건씩.
+# 90일 윈도우 + thumbnail_url IS NULL 매물 우선.
 # 분할 아키텍처: 기본 정보(사진·비고)만 채움. PDF·등기는 별도 워크플로.
 
 on:
   schedule:
-    - cron: '30 18 * * *'   # KST 03:30
+    - cron: '30 18,6 * * *'   # KST 03:30, 15:30
   workflow_dispatch:
 
 concurrency:
