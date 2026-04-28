@@ -132,17 +132,17 @@ async function main() {
   }
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-  // 60일 롤링 윈도우
+  // 90일 롤링 윈도우
   const todayIso = new Date().toISOString().slice(0, 10);
-  const window60 = new Date(); window60.setDate(window60.getDate() + 60);
-  const window60Iso = window60.toISOString().slice(0, 10);
+  const window90 = new Date(); window90.setDate(window90.getDate() + 90);
+  const window90Iso = window90.toISOString().slice(0, 10);
   let q = supabase.from('auction_items')
     .select('id, case_number, raw_data')
     .eq('source', 'court_auction')
     .eq('category', 'real_estate')
     .not('raw_data->_detail->curstExmn->dlt_ordTsRlet', 'is', null)
     .gte('auction_date', todayIso)
-    .lte('auction_date', window60Iso)
+    .lte('auction_date', window90Iso)
     .order('auction_date', { ascending: true, nullsFirst: false })
     .limit(LIMIT * 3);
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
