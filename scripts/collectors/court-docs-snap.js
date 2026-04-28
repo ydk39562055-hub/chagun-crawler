@@ -230,13 +230,17 @@ async function main() {
   if (!url || !key) { console.error('SUPABASE env missing'); process.exit(1); }
   const supabase = createClient(url, key);
 
-  // 매각일 미래 + 가까운 순. 이미 끝난 사건은 문건/송달 페이지가 닫힌 경우 있음 → 3연속 실패 가드 위험
+  // 매각일 미래 + 가까운 순. 60일 윈도우(롤링) — 매각일 60일 이내 매물만 대상.
+  // 이미 끝난 사건은 문건/송달 페이지가 닫힌 경우 있음 → 3연속 실패 가드 위험.
   const todayIso = new Date().toISOString().slice(0, 10);
+  const window60 = new Date(); window60.setDate(window60.getDate() + 60);
+  const window60Iso = window60.toISOString().slice(0, 10);
   let q = supabase.from('auction_items')
     .select('id, case_number, raw_data, auction_date')
     .eq('source', 'court_auction').eq('category', CATEGORY)
     .not('raw_data->boCd', 'is', null)
     .gte('auction_date', todayIso)
+    .lte('auction_date', window60Iso)
     .order('auction_date', { ascending: true, nullsFirst: false })
     .limit(LIMIT * 8);
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);

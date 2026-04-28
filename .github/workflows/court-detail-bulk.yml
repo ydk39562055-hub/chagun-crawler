@@ -1,0 +1,43 @@
+name: 법원경매 detail 일괄 (60일 윈도우)
+
+# 매일 1회 KST 03:30. detail-collect 200건 — 가벼운 단계라 한 번에 큰 배치.
+# 60일 윈도우 + thumbnail_url IS NULL 매물 우선.
+# 분할 아키텍처: 기본 정보(사진·비고)만 채움. PDF·등기는 별도 워크플로.
+
+on:
+  schedule:
+    - cron: '30 18 * * *'   # KST 03:30
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  detail-bulk:
+    name: detail-collect 200건
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+
+      - name: 부동산 detail 100건
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-detail-collect.js --upsert --limit 100 --category real_estate
+
+      - name: 차량 detail 100건
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-detail-collect.js --upsert --limit 100 --category vehicle

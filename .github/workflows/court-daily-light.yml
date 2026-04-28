@@ -1,12 +1,11 @@
-name: 법원경매 매일 가벼운 수집
+name: 법원경매 매일 가벼운 수집 (DEPRECATED)
 
-# 매일 KST 03/09/15/21 (4회). public 레포 무료 한도 무제한 활용.
-# 시간대 분산 = 차단 회피 + 데이터 신선도 6시간.
-# 사이트 호출 단계는 매각PDF뿐(부+차) — 5건씩 4회 = 일일 40건.
+# DEPRECATED: 분할 아키텍처로 대체됨.
+#   - 매각PDF → court-spcfc-bulk.yml (매시간)
+#   - 자체처리 → court-self-process.yml (매일)
+# 폴백/수동 dispatch용으로만 유지.
 
 on:
-  schedule:
-    - cron: '0 18,0,6,12 * * *'   # UTC 18,0,6,12 = KST 03,09,15,21
   workflow_dispatch:
 
 concurrency:

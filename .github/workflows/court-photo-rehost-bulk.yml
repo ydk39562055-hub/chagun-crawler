@@ -1,0 +1,38 @@
+name: 법원경매 사진 재호스트 일괄 (매 2시간)
+
+# 매 2시간 KST 30분. court-photo-rehost — _photos URL이 courtauction 직링크(404)인 건만.
+# Playwright 사용. limit 8씩 12회/일 = 96건/일.
+
+on:
+  schedule:
+    - cron: '30 */2 * * *'   # 매 2시간 30분 (00:30, 02:30, ..., 22:30 UTC)
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  photo-rehost-bulk:
+    name: 사진 재호스트 8건
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+      - name: Playwright Chromium
+        working-directory: scripts
+        run: npx playwright install chromium --with-deps
+
+      - name: 사진 재호스트 8건
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-photo-rehost.js --upload --limit 8

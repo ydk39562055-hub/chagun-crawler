@@ -47,15 +47,17 @@ function runScript(scriptName, scriptArgs) {
 
 async function pickCaseNumbers(supabase) {
   if (CASE_NUMBER) return [CASE_NUMBER];
-  // 매각일 미래 + _detail 미수집 건만, 임박순 (가장 가까운 매각일 우선).
+  // 매각일 60일 이내 롤링 윈도우 + _detail 미수집 건만, 임박순 (가장 가까운 매각일 우선).
   // 과거 thumbnail=null 일감처리 → 매각 끝난 사건 PDF 시도 → 전부 실패 버그 픽스.
   const today = new Date().toISOString();
+  const window60 = new Date(); window60.setDate(window60.getDate() + 60);
   const { data } = await supabase
     .from('auction_items')
     .select('case_number, auction_date')
     .eq('source', 'court_auction')
     .eq('category', 'real_estate')
     .gte('auction_date', today)
+    .lte('auction_date', window60.toISOString())
     .is('raw_data->_detail', null)
     .order('auction_date', { ascending: true, nullsFirst: false })
     .limit(LIMIT * 3);

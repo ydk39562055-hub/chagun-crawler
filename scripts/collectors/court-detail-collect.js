@@ -82,12 +82,17 @@ async function main() {
   if (!url || !key) { console.error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 누락'); process.exit(1); }
   const supabase = createClient(url, key);
 
-  // thumbnail_url IS NULL인 물건 조회
+  // thumbnail_url IS NULL인 물건 조회 (매각일 60일 이내 롤링 윈도우)
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const window60 = new Date(); window60.setDate(window60.getDate() + 60);
+  const window60Iso = window60.toISOString().slice(0, 10);
   let q = supabase
     .from('auction_items')
     .select('id, case_number, category, raw_data')
     .eq('source', 'court_auction')
     .is('thumbnail_url', null)
+    .gte('auction_date', todayIso)
+    .lte('auction_date', window60Iso)
     .order('auction_date', { ascending: true, nullsFirst: false })
     .limit(LIMIT);
   if (CATEGORY !== 'all') q = q.eq('category', CATEGORY);

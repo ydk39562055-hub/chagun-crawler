@@ -1,12 +1,13 @@
-name: 법원경매 부동산 임박 우선 수집
+name: 법원경매 부동산 임박 우선 수집 (DEPRECATED)
 
-# 매일 KST 06/18 (2회). 매각일 임박 + _detail 미수집 부동산을 limit 3씩.
-# court-full-pipeline.js 가 이미 auction_date 임박순 정렬 → 7일 안에 _detail 채워짐.
-# 시간대 분산 = 차단 회피 + 데이터 신선도 12시간.
+# DEPRECATED: 분할 아키텍처로 대체됨.
+#   - detail → court-detail-bulk.yml
+#   - 매각PDF → court-spcfc-bulk.yml
+#   - 감정평가서 → court-docs-fetch-bulk.yml
+#   - 문건/송달 → court-docs-snap-bulk.yml
+# full-pipeline 통째 호출은 폴백/수동 dispatch용으로만 유지.
 
 on:
-  schedule:
-    - cron: '0 21,9 * * *'   # UTC 21,9 = KST 06,18
   workflow_dispatch:
 
 concurrency:

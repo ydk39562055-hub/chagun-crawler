@@ -276,7 +276,10 @@ async function main() {
   if (!url || !key) { console.error('SUPABASE env missing'); process.exit(1); }
   const supabase = createClient(url, key);
 
+  // 60일 롤링 윈도우
   const today = new Date().toISOString().slice(0, 10);
+  const window60 = new Date(); window60.setDate(window60.getDate() + 60);
+  const window60Iso = window60.toISOString().slice(0, 10);
   let q = supabase.from('auction_items')
     .select('id, case_number, raw_data, auction_date')
     .eq('source', 'court_auction').eq('category', 'vehicle')
@@ -284,7 +287,7 @@ async function main() {
     .order('auction_date', { ascending: true, nullsFirst: false })
     .limit(LIMIT * 2);
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
-  else q = q.gte('auction_date', today);
+  else q = q.gte('auction_date', today).lte('auction_date', window60Iso);
   const { data, error } = await q;
   if (error) { console.error(error); process.exit(1); }
 

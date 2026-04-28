@@ -1,0 +1,61 @@
+name: 법원경매 자체처리 (사이트 호출 0)
+
+# 매일 1회 KST 04:00. 사이트 호출 없이 DB·기존 PDF만 처리.
+# - curst-pdf-generate: curstExmn JSON → 렌더 PDF
+# - rgst-extract: 매각PDF → atSale 파싱
+# - tenant-from-curst: 현황조사서 → atAppraisal 파싱
+# - vehicle-spcfc-extract: 차량 매각PDF → parsedSpcfc/parsedVehicle
+#
+# concurrency 그룹 별도 (court-self) — 사이트 호출 0이므로 다른 워크플로와 동시 가능.
+
+on:
+  schedule:
+    - cron: '0 19 * * *'   # KST 04:00
+  workflow_dispatch:
+
+concurrency:
+  group: court-self
+  cancel-in-progress: false
+
+jobs:
+  self-process:
+    name: 자체처리 (호출 0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+
+      - name: 현황조사서 PDF 자체생성
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-curst-pdf-generate.js --upload --limit 100
+
+      - name: rgstSummary 파싱 (매각PDF → atSale)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-rgst-extract.js --upload --limit 100
+
+      - name: 1차 권리분석 (현황조사서 → atAppraisal)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-tenant-from-curst.js --upload --limit 100
+
+      - name: 차량 매각PDF 파싱
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-vehicle-spcfc-extract.js --upload --limit 100

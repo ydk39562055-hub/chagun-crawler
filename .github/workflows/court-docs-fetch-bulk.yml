@@ -1,0 +1,35 @@
+name: 법원경매 감정평가서 일괄 (매 4시간)
+
+# KST 02:00 / 06:00 / 10:00 / 14:00 / 18:00 / 22:00 (6회/일).
+# kapanet 외부 호출 — 법원 사이트 부담 없음. limit 15씩 6회 = 90건/일.
+
+on:
+  schedule:
+    - cron: '0 17,21,1,5,9,13 * * *'   # KST 02/06/10/14/18/22 (UTC 17/21/1/5/9/13)
+  workflow_dispatch:
+
+concurrency:
+  group: court-external
+  cancel-in-progress: false
+
+jobs:
+  docs-fetch-bulk:
+    name: 감정평가서 15건
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+
+      - name: 감정평가서 PDF 15건 (kapanet)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-docs-fetch.js --upload --limit 15

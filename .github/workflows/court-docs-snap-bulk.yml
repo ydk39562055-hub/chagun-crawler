@@ -1,0 +1,45 @@
+name: 법원경매 문건/송달 일괄 (매시간)
+
+# 매시간 KST 45분. docs-snap (문건/송달내역 캡처). limit 5씩 24회/일 = 120건/일.
+# Playwright 무거움 → 한 번 실행 약 5분 머묾.
+
+on:
+  schedule:
+    - cron: '45 * * * *'   # 매시간 45분 (spcfc-bulk와 30분 시차)
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  docs-snap-bulk:
+    name: 문건/송달 5건 (부+차)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+      - name: Playwright Chromium
+        working-directory: scripts
+        run: npx playwright install chromium --with-deps
+
+      - name: 부동산 문건/송달 5건
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-docs-snap.js --upload --limit 5
+
+      - name: 차량 문건/송달 5건
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-docs-snap.js --upload --category vehicle --limit 5

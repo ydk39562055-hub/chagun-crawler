@@ -1,0 +1,46 @@
+name: 법원경매 매각PDF 일괄 (매시간)
+
+# 매시간 KST. 매각PDF만 집중 수집 (Playwright). limit 5씩 24회/일 = 120건/일.
+# spcfc-fetch는 매각 7일 전부터 활성화되는 PDF — 임박 매물 한정.
+# 한 번 실행 머묾 시간 짧음(약 5분) → 차단 위험 낮음.
+
+on:
+  schedule:
+    - cron: '15 * * * *'   # 매시간 15분 (다른 워크플로와 시간차)
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  spcfc-bulk:
+    name: 매각PDF 5건 (부+차)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+      - name: Playwright Chromium
+        working-directory: scripts
+        run: npx playwright install chromium --with-deps
+
+      - name: 부동산 매각PDF 5건
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-spcfc-fetch.js --upload --limit 5
+
+      - name: 차량 매각PDF 5건
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-spcfc-fetch.js --upload --category vehicle --limit 5

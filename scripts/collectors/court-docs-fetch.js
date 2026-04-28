@@ -104,13 +104,17 @@ async function main() {
   if (!url || !key) { console.error('SUPABASE env missing'); process.exit(1); }
   const supabase = createClient(url, key);
 
-  // 매각일 미래(아직 안 끝난 건)부터 가까운 순. 이미 매각 끝난 건은 kapanet 이 PDF 내림 → view-404 → 3연속 가드 발동 위험
+  // 매각일 미래(아직 안 끝난 건)부터 가까운 순. 60일 롤링 윈도우.
+  // 이미 매각 끝난 건은 kapanet 이 PDF 내림 → view-404 → 3연속 가드 발동 위험
   const todayIso = new Date().toISOString().slice(0, 10);
+  const window60 = new Date(); window60.setDate(window60.getDate() + 60);
+  const window60Iso = window60.toISOString().slice(0, 10);
   let q = supabase.from('auction_items')
     .select('id, case_number, raw_data, auction_date')
     .eq('source', 'court_auction').eq('category', 'real_estate')
     .not('raw_data->_detail->aeeWevlInfo', 'is', null)
     .gte('auction_date', todayIso)
+    .lte('auction_date', window60Iso)
     .order('auction_date', { ascending: true, nullsFirst: false })
     .limit(LIMIT * 8);
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
