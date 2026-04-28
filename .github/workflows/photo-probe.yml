@@ -1,0 +1,33 @@
+name: 사진 URL 프로브 (수동)
+
+# 법원경매 상세 페이지의 실제 사진 URL 역추적.
+# DOM <img> src + 네트워크 이미지 요청 로그 수집.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+      - run: npx playwright install --with-deps chromium
+        working-directory: scripts
+      - name: 프로브 실행
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-photo-probe.js

@@ -1,0 +1,54 @@
+name: 법원경매 부동산 임박 우선 수집
+
+# 매일 04:30 KST. 매각일 임박 + _detail 미수집 부동산을 limit 5로 잡음.
+# court-full-pipeline.js 가 이미 auction_date 임박순 정렬 → 14일 안에 _detail 채워짐.
+# 1회 ~25분, 월 ~750분.
+
+on:
+  schedule:
+    - cron: '30 19 * * *'   # KST 04:30
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  realestate-imminent:
+    name: 부동산 임박 우선
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+      - name: Playwright 브라우저 설치
+        working-directory: scripts
+        run: npx playwright install chromium --with-deps
+
+      - name: 부동산 통합 파이프라인 (임박순 _detail 미수집 5건)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node collectors/court-full-pipeline.js --limit 5
+
+      - name: 감정평가서 PDF 보충 (kapanet, _detail 있는 임박 건)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-docs-fetch.js --upload --limit 5
+
+      - name: 부동산 문건/송달 (_detail 있는 임박 건)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-docs-snap.js --upload --limit 5

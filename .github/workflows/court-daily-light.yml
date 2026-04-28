@@ -1,0 +1,74 @@
+name: 법원경매 매일 가벼운 수집
+
+# 매일 04:00 KST. 자체처리(JSON→PDF, PDF→파싱)와 시점민감 매각PDF 수집.
+# 사이트 호출 단계는 매각PDF뿐(부+차) — 평균 6건/일, 차단 위험 최소.
+# 1회 ~15분, 월 ~450분.
+
+on:
+  schedule:
+    - cron: '0 19 * * *'   # KST 04:00
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  daily-light:
+    name: 매각PDF + 자체처리
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+      - name: Playwright 브라우저 설치
+        working-directory: scripts
+        run: npx playwright install chromium --with-deps
+
+      - name: 부동산 매각물건명세서 PDF (매각 7일 전부터 활성)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-spcfc-fetch.js --upload --limit 10
+
+      - name: 차량 매각물건명세서 PDF
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-spcfc-fetch.js --upload --category vehicle --limit 10
+
+      - name: 현황조사서 PDF 자체생성 (curstExmn JSON → 렌더 PDF, 사이트 호출 0)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-curst-pdf-generate.js --upload --limit 20
+
+      - name: rgstSummary 파싱 (매각PDF → atSale, 사이트 호출 0)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-rgst-extract.js --upload --limit 20
+
+      - name: 1차 권리분석 (현황조사서 JSON → atAppraisal, 사이트 호출 0)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-tenant-from-curst.js --upload --limit 30
+
+      - name: 차량 매각PDF 파싱 (parsedSpcfc·parsedVehicle, 사이트 호출 0)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-vehicle-spcfc-extract.js --upload --limit 20

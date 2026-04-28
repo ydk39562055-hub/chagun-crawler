@@ -1,0 +1,54 @@
+name: 공매 차량·부동산 수집 (온비드, 하루 1회)
+
+on:
+  schedule:
+    # KST 06:00 (UTC 21:00) — 월 무료 한도 맞추기 위해 3회→1회 축소
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: onbid-collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    name: 온비드 공매 차량 목록 수집·보강
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+
+      - name: 온비드 차량 목록 업서트
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ONBID_API_KEY: ${{ secrets.ONBID_API_KEY }}
+        run: node collectors/onbid-vehicle-list.js --upsert --all
+
+      - name: VIN·보관소·색상 보강 (과거 데이터 백필)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/onbid-vehicle-enrich.js --upsert
+
+      # 부동산 공매 — data.go.kr 인증키는 차량용(ONBID_API_KEY)과 공용.
+      # ONBID_REAL_ESTATE_API_URL Secret 만 등록되면 자동 가동.
+      # URL 없으면 collector 가 process.exit(1) → continue-on-error 로 워크플로는 통과.
+      - name: 온비드 부동산 목록 업서트 (URL Secret 등록 후 자동 가동)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ONBID_API_KEY: ${{ secrets.ONBID_API_KEY }}
+          ONBID_REAL_ESTATE_API_URL: ${{ secrets.ONBID_REAL_ESTATE_API_URL }}
+        continue-on-error: true
+        run: node collectors/onbid-realestate-list.js --upsert --all

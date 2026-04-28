@@ -1,0 +1,23 @@
+{
+  "name": "chagun-auction-collectors",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "차근경매 데이터 수집 스크립트 (온비드 공매 · 법원경매)",
+  "scripts": {
+    "test:list": "node collectors/onbid-vehicle-list.js --dry-run",
+    "collect:list": "node collectors/onbid-vehicle-list.js",
+    "collect:results": "node collectors/onbid-bid-results.js",
+    "collect:all": "node collectors/run-all.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "fast-xml-parser": "^4.4.1",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^3.11.174",
+    "playwright": "^1.59.1",
+    "sharp": "^0.33.5"
+  }
+}

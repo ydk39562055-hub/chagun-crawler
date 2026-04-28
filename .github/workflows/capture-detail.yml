@@ -1,0 +1,48 @@
+name: 문서 XHR 캡처 (수동)
+
+# 법원경매 상세 페이지의 매각물건명세서·현황조사서·감정평가서 등
+# XHR POST URL+body를 Playwright로 캡처해 artifact로 수집.
+# 로컬 실행은 IP 차단 위험이 있어 GH Actions 별도 IP에서 실행.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - run: npm ci
+        working-directory: scripts
+
+      - name: Playwright Chromium 설치
+        working-directory: scripts
+        run: npx playwright install --with-deps chromium
+
+      - name: 캡처 실행
+        working-directory: scripts
+        continue-on-error: true
+        run: node collectors/capture-detail-apis.js
+
+      - name: 캡처 결과 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capture-results-${{ github.run_id }}
+          path: |
+            scripts/collectors/capture-detail-apis.log.json
+            scripts/collectors/capture-shots/**
+          retention-days: 7
+          if-no-files-found: warn

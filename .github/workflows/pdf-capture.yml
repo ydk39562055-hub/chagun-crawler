@@ -1,0 +1,76 @@
+name: 매각물건명세서 PDF 캡처 (c1)
+
+# c1 파이프라인: Playwright로 상세 진입 → 매각물건명세서 렌더 → page.pdf() → Supabase Storage.
+# 로컬 실행은 IP 차단 위험 → GH Actions에서 소량씩 배치 실행.
+
+on:
+  schedule:
+    # 한국시간 05:00 (UTC 20:00) — 월 무료 한도 맞추기 위해 1회/일, 5건씩
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: '캡처 건수 (기본 5, 권장 ≤10)'
+        required: false
+        default: '5'
+      upload:
+        description: 'true=Storage 업로드, false=로컬 테스트만'
+        required: false
+        default: 'true'
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - run: npm install
+        working-directory: scripts
+
+      - name: Playwright Chromium 설치
+        working-directory: scripts
+        run: npx playwright install --with-deps chromium
+
+      - name: 부동산 PDF 캡처
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          LIMIT="${{ github.event.inputs.limit || '5' }}"
+          UPLOAD="${{ github.event.inputs.upload || 'true' }}"
+          FLAGS="--limit $LIMIT --category real_estate"
+          if [ "$UPLOAD" = "true" ]; then FLAGS="$FLAGS --upload"; fi
+          node collectors/court-pdf-capture.js $FLAGS
+
+      - name: 차량 PDF 캡처
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          LIMIT="${{ github.event.inputs.limit || '5' }}"
+          UPLOAD="${{ github.event.inputs.upload || 'true' }}"
+          FLAGS="--limit $LIMIT --category vehicle"
+          if [ "$UPLOAD" = "true" ]; then FLAGS="$FLAGS --upload"; fi
+          node collectors/court-pdf-capture.js $FLAGS
+
+      - name: 로컬 PDF 샘플 아티팩트 업로드 (검증용)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-samples-${{ github.run_id }}
+          path: scripts/collectors/pdf-out/**
+          retention-days: 3
+          if-no-files-found: warn

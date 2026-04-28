@@ -1,0 +1,44 @@
+name: PDF 파싱 (수동)
+
+# court-pdf-parse: Supabase Storage auction-pdfs 버킷에 저장된
+# 매각물건명세서·현황조사서·감정평가서·등기기록 PDF 를 pdf-parse 로 텍스트
+# 추출 → 당사자·임차인·등기권리·말소기준 정규식 파싱 → auction_items.raw_data._detail 저장.
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: '파싱 건수 (기본 10)'
+        required: false
+        default: '10'
+      upsert:
+        description: 'true=DB 저장, false=미리보기'
+        required: false
+        default: 'true'
+
+concurrency:
+  group: court-parse
+  cancel-in-progress: false
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm install
+        working-directory: scripts
+      - name: 파싱 실행
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          FLAGS="--limit ${{ inputs.limit }}"
+          if [ "${{ inputs.upsert }}" = "true" ]; then FLAGS="$FLAGS --upsert"; fi
+          node collectors/court-pdf-parse.js $FLAGS

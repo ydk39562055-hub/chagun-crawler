@@ -1,0 +1,24 @@
+# 환경변수 (절대 커밋 금지)
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Node
+**/node_modules/
+**/npm-debug.log*
+
+# Playwright
+scripts/test-results/
+scripts/playwright-report/
+
+# 탐색/디버그 임시 산출물
+scripts/tmp/
+scripts/_*
+scripts/collectors/_*
+scripts/probe-download/
+scripts/collectors/pdf-out/
+scripts/*.log
+
+# OS
+.DS_Store
+Thumbs.db

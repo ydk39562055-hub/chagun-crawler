@@ -1,0 +1,114 @@
+name: 법원경매 수집 (하루 1회)
+
+on:
+  schedule:
+    # 한국시간 03:00 (UTC 18:00) — 월 무료 한도 맞추기 위해 2회→1회 축소
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  list:
+    name: 매각물건 목록
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - run: npm ci
+        working-directory: scripts
+
+      - name: 목록 수집 (20페이지, 800건)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-collect.js --upsert --pages 20
+
+  detail:
+    name: 상세 수집 (사진·비고)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: list
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - run: npm ci
+        working-directory: scripts
+
+      - name: 부동산 상세 수집 (30건)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-detail-collect.js --upsert --limit 30 --category real_estate
+
+      - name: 차량 상세 수집 (20건)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-detail-collect.js --upsert --limit 20 --category vehicle
+
+  vehicle:
+    name: 자동차/중기 목록
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: detail
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - run: npm ci
+        working-directory: scripts
+
+      - name: 자동차 수집 (14페이지, 약 550건)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-vehicle-collect.js --upsert --pages 14
+
+  results:
+    name: 매각결과 (낙찰가)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: vehicle
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - run: npm ci
+        working-directory: scripts
+
+      - name: 매각결과 수집 (최근 3개월, 증분)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-results-collect.js --upsert --months 3 --pages 200

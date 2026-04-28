@@ -1,0 +1,46 @@
+name: 사진 재호스팅 (수동)
+
+# court-photo-rehost: Playwright로 상세 페이지 진입 → img src 실측 →
+# 세션 포함 다운로드 → sharp 리사이즈(800px, JPEG q70) → Supabase Storage.
+# 기존 _photos URL이 courtauction 직링크(404)인 건 대상.
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: '재호스팅 건수 (기본 5)'
+        required: false
+        default: '5'
+      upload:
+        description: 'true=업로드, false=다운로드·리사이즈만'
+        required: false
+        default: 'true'
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  rehost:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm install
+        working-directory: scripts
+      - run: npx playwright install --with-deps chromium
+        working-directory: scripts
+      - name: 재호스팅 실행
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          FLAGS="--limit ${{ inputs.limit }}"
+          if [ "${{ inputs.upload }}" = "true" ]; then FLAGS="$FLAGS --upload"; fi
+          node collectors/court-photo-rehost.js $FLAGS

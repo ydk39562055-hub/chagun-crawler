@@ -1,0 +1,71 @@
+name: 법원경매 차량 격일 수집
+
+# 격일(매월 홀수일) 05:30 KST. 차량 docs · photos · 문건 일괄.
+# 부동산 daily 끝난 뒤 충분한 간격 확보. concurrency 그룹 동일 — 우연한 중첩 자동 차단.
+# 1회 ~50분, 월 ~750분(15회).
+
+on:
+  schedule:
+    - cron: '30 20 1-31/2 * *'   # KST 05:30, 매월 홀수일
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  vehicle-docs:
+    name: 차량 문서 수집
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+      - name: Playwright 브라우저 설치
+        working-directory: scripts
+        run: npx playwright install chromium --with-deps
+
+      - name: 차량 문서 수집 (감정평가서·배당공고·페이지스냅, 매각일 임박)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-vehicle-docs-fetch.js --upload --limit 8
+
+      - name: 차량 문건/송달 (_detail 있는 임박 건)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-docs-snap.js --upload --category vehicle --limit 10
+
+  vehicle-photos:
+    name: 차량 페이지 사진
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    needs: vehicle-docs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+      - name: Playwright 브라우저 설치
+        working-directory: scripts
+        run: npx playwright install chromium --with-deps
+
+      - name: 차량 페이지 사진 (PGJ154M00 base64 + PDF 폴백)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-vehicle-photos-from-page.js --upload --limit 6
