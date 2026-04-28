@@ -1,12 +1,9 @@
-name: 매각물건명세서 PDF 캡처 (c1)
+name: 매각물건명세서 PDF 캡처 (c1, 폴백)
 
-# c1 파이프라인: Playwright로 상세 진입 → 매각물건명세서 렌더 → page.pdf() → Supabase Storage.
-# 로컬 실행은 IP 차단 위험 → GH Actions에서 소량씩 배치 실행.
+# DEPRECATED: court-spcfc-fetch.js 가 ecfs StreamDocs 원본 PDF 직접 다운로드 → 정식.
+# 이 워크플로(page.pdf 렌더링)는 폴백용으로만 유지. 자동 실행 제거.
 
 on:
-  schedule:
-    # 한국시간 05:00 (UTC 20:00) — 월 무료 한도 맞추기 위해 1회/일, 5건씩
-    - cron: '0 20 * * *'
   workflow_dispatch:
     inputs:
       limit:

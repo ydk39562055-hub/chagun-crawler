@@ -1,12 +1,12 @@
 name: 법원경매 매일 가벼운 수집
 
-# 매일 04:00 KST. 자체처리(JSON→PDF, PDF→파싱)와 시점민감 매각PDF 수집.
-# 사이트 호출 단계는 매각PDF뿐(부+차) — 평균 6건/일, 차단 위험 최소.
-# 1회 ~15분, 월 ~450분.
+# 매일 KST 03/09/15/21 (4회). public 레포 무료 한도 무제한 활용.
+# 시간대 분산 = 차단 회피 + 데이터 신선도 6시간.
+# 사이트 호출 단계는 매각PDF뿐(부+차) — 5건씩 4회 = 일일 40건.
 
 on:
   schedule:
-    - cron: '0 19 * * *'   # KST 04:00
+    - cron: '0 18,0,6,12 * * *'   # UTC 18,0,6,12 = KST 03,09,15,21
   workflow_dispatch:
 
 concurrency:
@@ -36,14 +36,14 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-spcfc-fetch.js --upload --limit 10
+        run: node collectors/court-spcfc-fetch.js --upload --limit 5
 
       - name: 차량 매각물건명세서 PDF
         working-directory: scripts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-spcfc-fetch.js --upload --category vehicle --limit 10
+        run: node collectors/court-spcfc-fetch.js --upload --category vehicle --limit 5
 
       - name: 현황조사서 PDF 자체생성 (curstExmn JSON → 렌더 PDF, 사이트 호출 0)
         working-directory: scripts

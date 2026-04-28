@@ -1,12 +1,12 @@
 name: 법원경매 부동산 임박 우선 수집
 
-# 매일 04:30 KST. 매각일 임박 + _detail 미수집 부동산을 limit 5로 잡음.
-# court-full-pipeline.js 가 이미 auction_date 임박순 정렬 → 14일 안에 _detail 채워짐.
-# 1회 ~25분, 월 ~750분.
+# 매일 KST 06/18 (2회). 매각일 임박 + _detail 미수집 부동산을 limit 3씩.
+# court-full-pipeline.js 가 이미 auction_date 임박순 정렬 → 7일 안에 _detail 채워짐.
+# 시간대 분산 = 차단 회피 + 데이터 신선도 12시간.
 
 on:
   schedule:
-    - cron: '30 19 * * *'   # KST 04:30
+    - cron: '0 21,9 * * *'   # UTC 21,9 = KST 06,18
   workflow_dispatch:
 
 concurrency:
@@ -31,24 +31,24 @@ jobs:
         working-directory: scripts
         run: npx playwright install chromium --with-deps
 
-      - name: 부동산 통합 파이프라인 (임박순 _detail 미수집 5건)
+      - name: 부동산 통합 파이프라인 (임박순 _detail 미수집 3건)
         working-directory: scripts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: node collectors/court-full-pipeline.js --limit 5
+        run: node collectors/court-full-pipeline.js --limit 3
 
       - name: 감정평가서 PDF 보충 (kapanet, _detail 있는 임박 건)
         working-directory: scripts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-docs-fetch.js --upload --limit 5
+        run: node collectors/court-docs-fetch.js --upload --limit 3
 
       - name: 부동산 문건/송달 (_detail 있는 임박 건)
         working-directory: scripts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-docs-snap.js --upload --limit 5
+        run: node collectors/court-docs-snap.js --upload --limit 3
