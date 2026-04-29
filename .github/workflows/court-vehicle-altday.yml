@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: court-crawl
+  group: court-vehicle   # court-crawl 그룹에서 분리 — 매시간 cron과 충돌 회피
   cancel-in-progress: false
 
 jobs:
