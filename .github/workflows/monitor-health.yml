@@ -1,0 +1,196 @@
+name: 크롤러 헬스 모니터
+
+# 매일 KST 09:00 어제 24시간 워크플로 결과 분석.
+# 차단 의심 신호 발견 시 GitHub Issue 자동 생성 → 본인 이메일/푸시 알림.
+#
+# 감지 신호:
+#   1. 전체 실패율 ≥ 15%
+#   2. 특정 워크플로 실패율 ≥ 30% (단계별 차단)
+#   3. "blocked", "차단", "잘못된 번호", "btn-disabled" 등 차단성 메시지 5회 이상
+#   4. PDF·스크롤 실패: "no-pdf", "pdf-too-small", "snap-too-small", "download-timeout" 합 10회 이상
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # KST 09:00 (UTC 00:00)
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  actions: read
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 어제 24시간 워크플로 결과 분석
+        id: analyze
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          SINCE=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          REPO="${{ github.repository }}"
+
+          echo "=== 24h 분석 시작: $SINCE 이후 ==="
+
+          # 모든 워크플로 실행 fetch (모니터 자체 제외)
+          gh run list -R "$REPO" \
+            --created ">${SINCE}" \
+            --limit 300 \
+            --json workflowName,conclusion,databaseId,status,event \
+            | jq '[.[] | select(.workflowName != "크롤러 헬스 모니터")]' > runs.json
+
+          TOTAL=$(jq 'length' runs.json)
+          SUCCESS=$(jq '[.[] | select(.conclusion == "success")] | length' runs.json)
+          FAILURE=$(jq '[.[] | select(.conclusion == "failure")] | length' runs.json)
+          CANCELLED=$(jq '[.[] | select(.conclusion == "cancelled")] | length' runs.json)
+          IN_PROGRESS=$(jq '[.[] | select(.status != "completed")] | length' runs.json)
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "어제 실행 없음 — schedule 미발화 또는 첫날"
+            echo "alert=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 실패율(완료된 것만)
+          COMPLETED=$((SUCCESS + FAILURE + CANCELLED))
+          if [ "$COMPLETED" -gt 0 ]; then
+            FAIL_PCT=$(awk "BEGIN { printf \"%.1f\", $FAILURE * 100 / $COMPLETED }")
+          else
+            FAIL_PCT="0.0"
+          fi
+
+          echo "총 $TOTAL (완료 $COMPLETED, 진행중 $IN_PROGRESS)"
+          echo "성공 $SUCCESS, 실패 $FAILURE ($FAIL_PCT%), 취소 $CANCELLED"
+
+          # 워크플로별 실패율
+          jq -r '
+            [.[] | select(.conclusion != null)] |
+            group_by(.workflowName) |
+            map({
+              name: .[0].workflowName,
+              total: length,
+              fail: ([.[] | select(.conclusion == "failure")] | length)
+            }) |
+            map(. + {pct: ((.fail * 100 / .total) | tostring | .[0:5])}) |
+            sort_by(-(.fail))
+          ' runs.json > by_workflow.json
+
+          echo ""
+          echo "=== 워크플로별 ==="
+          jq -r '.[] | "\(.name): \(.fail)/\(.total) (\(.pct)%)"' by_workflow.json
+
+          # 차단 메시지 분석 — 실패한 워크플로 로그에서 키워드 카운트
+          BLOCKED_COUNT=0
+          PDF_FAIL_COUNT=0
+          declare -a SAMPLES
+
+          # 실패한 워크플로 최근 5개 로그 sample
+          FAILED_IDS=$(jq -r '[.[] | select(.conclusion == "failure")] | .[0:5] | .[] | .databaseId' runs.json)
+          for id in $FAILED_IDS; do
+            LOG=$(gh run view "$id" -R "$REPO" --log 2>/dev/null | head -5000 || echo "")
+            BC=$(echo "$LOG" | grep -ciE "(blocked|차단|잘못된 번호|btn-disabled|3연속.*차단|5건 연속)" || true)
+            PFC=$(echo "$LOG" | grep -ciE "(no-pdf|pdf-too-small|snap-too-small|download-timeout|not-pdf-magic|view-404)" || true)
+            BLOCKED_COUNT=$((BLOCKED_COUNT + BC))
+            PDF_FAIL_COUNT=$((PDF_FAIL_COUNT + PFC))
+            if [ "$BC" -gt 0 ] || [ "$PFC" -gt 0 ]; then
+              SAMPLE=$(echo "$LOG" | grep -iE "(blocked|차단|잘못된 번호|btn-disabled|no-pdf|too-small|timeout|view-404)" | head -3)
+              SAMPLES+=("run $id:\n$SAMPLE")
+            fi
+          done
+
+          echo ""
+          echo "차단 의심 메시지: $BLOCKED_COUNT회 (최근 실패 5건 로그 기준)"
+          echo "PDF·스크롤 실패: $PDF_FAIL_COUNT회"
+
+          # 알림 임계 판단
+          ALERT=false
+          REASONS=()
+
+          if (( $(echo "$FAIL_PCT >= 15" | bc -l) )); then
+            ALERT=true
+            REASONS+=("전체 실패율 ${FAIL_PCT}% (임계 15%)")
+          fi
+
+          # 워크플로별 30%+
+          HIGH_FAIL=$(jq -r '[.[] | select((.pct | tonumber) >= 30) | "\(.name) \(.pct)%"] | .[]' by_workflow.json || true)
+          if [ -n "$HIGH_FAIL" ]; then
+            ALERT=true
+            while IFS= read -r line; do REASONS+=("$line"); done <<< "$HIGH_FAIL"
+          fi
+
+          if [ "$BLOCKED_COUNT" -ge 5 ]; then
+            ALERT=true
+            REASONS+=("차단 메시지 ${BLOCKED_COUNT}회")
+          fi
+
+          if [ "$PDF_FAIL_COUNT" -ge 10 ]; then
+            ALERT=true
+            REASONS+=("PDF·스크롤 실패 ${PDF_FAIL_COUNT}회")
+          fi
+
+          # 결과 → outputs
+          {
+            echo "fail_pct=$FAIL_PCT"
+            echo "total=$TOTAL"
+            echo "failure=$FAILURE"
+            echo "blocked=$BLOCKED_COUNT"
+            echo "pdf_fail=$PDF_FAIL_COUNT"
+            if [ "$ALERT" = "true" ]; then
+              echo "alert=true"
+              {
+                echo "reasons<<EOF"
+                printf "%s\n" "${REASONS[@]}"
+                echo "EOF"
+              }
+            else
+              echo "alert=false"
+            fi
+          } >> "$GITHUB_OUTPUT"
+
+          # 통계 마크다운
+          {
+            echo "stats<<EOF"
+            echo "## 통계 (최근 24h)"
+            echo "- 총 실행: $TOTAL"
+            echo "- 성공: $SUCCESS / 실패: $FAILURE ($FAIL_PCT%) / 취소: $CANCELLED"
+            echo "- 차단 메시지: $BLOCKED_COUNT회"
+            echo "- PDF·스크롤 실패: $PDF_FAIL_COUNT회"
+            echo ""
+            echo "## 워크플로별 실패율"
+            jq -r '.[] | "- \(.name): \(.fail)/\(.total) (\(.pct)%)"' by_workflow.json
+            if [ ${#SAMPLES[@]} -gt 0 ]; then
+              echo ""
+              echo "## 실패 로그 샘플"
+              echo '```'
+              printf "%s\n" "${SAMPLES[@]}" | head -30
+              echo '```'
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 차단 의심 — Issue 생성
+        if: steps.analyze.outputs.alert == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date '+%Y-%m-%d')
+          gh issue create -R "${{ github.repository }}" \
+            --title "🚨 크롤러 차단 의심 (${DATE})" \
+            --body "$(cat <<'BODY'
+어제 24시간 모니터링 결과 차단 또는 비정상 신호 감지됨.
+
+## 의심 사유
+${{ steps.analyze.outputs.reasons }}
+
+${{ steps.analyze.outputs.stats }}
+
+## 권장 조치
+1. 실패 워크플로 로그 직접 확인
+2. 일시적이면 그대로 두고 다음날 재모니터
+3. 지속되면 V2 → V1 후퇴 (limit/빈도 줄임)
+4. 명확한 차단이면 cron schedule 일시 정지
+BODY
+)" \
+            --label "monitoring"
