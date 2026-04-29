@@ -1,12 +1,11 @@
-name: 법원경매 문건/송달 일괄 (매 30분 V2)
+name: 법원경매 문건/송달 일괄 (매시간 V2.5)
 
-# V2 강화: 매 30분 KST. limit 10씩 48회/일 = 480건/일.
-# Playwright 무거움 → 한 번 실행 약 8~10분 머묾.
-# spcfc-bulk와 15분 시차 (큐잉 분산).
+# V2.5: 매 30분 → 매시간 :45로 완화. limit 10 그대로 = 240건/일.
+# spcfc-bulk(:15)와 30분 시차.
 
 on:
   schedule:
-    - cron: '15,45 * * * *'   # 매시간 15분, 45분
+    - cron: '45 * * * *'   # 매시간 45분
   workflow_dispatch:
 
 concurrency:
