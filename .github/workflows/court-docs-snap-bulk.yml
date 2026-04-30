@@ -16,7 +16,7 @@ jobs:
   docs-snap-bulk:
     name: 문건/송달 5건 (부+차)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35   # limit 10건 실측 27분 → 35분 마진 (V2.5+)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
