@@ -5,7 +5,7 @@ name: 법원경매 사진 재호스트 일괄 (매시간 V2)
 
 on:
   schedule:
-    - cron: '6 * * * *'   # 매시간 6분 (GitHub schedule 재인식)
+    - cron: '8,38 * * * *'   # 매 30분 (:08, :38) — fetch 기반이라 안전
   workflow_dispatch:
 
 concurrency:
@@ -35,4 +35,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-photo-rehost.js --upload --limit 25
+        run: node collectors/court-photo-rehost.js --upload --limit 30
