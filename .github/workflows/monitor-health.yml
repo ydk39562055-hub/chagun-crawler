@@ -172,6 +172,83 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: 백필 진척 점검 (썸네일·PDF·권리분석)
+        id: progress
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          TODAY=$(date -u +%Y-%m-%d)
+          SEVEN=$(date -u -d '+7 days' +%Y-%m-%d)
+          REPO="${{ github.repository }}"
+
+          fetch_count() {
+            local filter="$1"
+            curl -s -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                 -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                 -H "Range: 0-0" -H "Prefer: count=exact" \
+                 "${SUPABASE_URL}/rest/v1/auction_items?select=id&${filter}" -i 2>&1 \
+              | grep "Content-Range" | grep -oE "/[0-9]+" | tr -d '/'
+          }
+
+          BASE="category=eq.real_estate&source=eq.court_auction&auction_date=gte.${TODAY}"
+          IMM_BASE="${BASE}&auction_date=lte.${SEVEN}"
+
+          TOTAL=$(fetch_count "$BASE")
+          THUMB=$(fetch_count "${BASE}&thumbnail_url=not.is.null")
+          DOCSNAP=$(fetch_count "${BASE}&raw_data->_detail->docsSnapPdf=not.is.null")
+          RGST=$(fetch_count "${BASE}&raw_data->_detail->rgstSummary->atSale=not.is.null")
+
+          IMM_TOTAL=$(fetch_count "$IMM_BASE")
+          IMM_PDF=$(fetch_count "${IMM_BASE}&raw_data->_detail->dspslGdsSpcfcPdf=not.is.null")
+          IMM_THUMB=$(fetch_count "${IMM_BASE}&thumbnail_url=not.is.null")
+
+          pct() { echo "scale=0; $1 * 100 / ${2:-1}" | bc; }
+
+          THUMB_PCT=$(pct "$THUMB" "$TOTAL")
+          DOCSNAP_PCT=$(pct "$DOCSNAP" "$TOTAL")
+          RGST_PCT=$(pct "$RGST" "$TOTAL")
+          IMM_PDF_PCT=$(pct "$IMM_PDF" "$IMM_TOTAL")
+          IMM_THUMB_PCT=$(pct "$IMM_THUMB" "$IMM_TOTAL")
+
+          echo "=== 백필 진척 (${TODAY}) ==="
+          echo "  진행 매물 ${TOTAL}건"
+          echo "  - 썸네일: ${THUMB_PCT}% (${THUMB}/${TOTAL})"
+          echo "  - 문건/송달: ${DOCSNAP_PCT}% (${DOCSNAP}/${TOTAL})"
+          echo "  - 권리분석: ${RGST_PCT}% (${RGST}/${TOTAL})"
+          echo "  임박 7일 ${IMM_TOTAL}건"
+          echo "  - 매각PDF: ${IMM_PDF_PCT}% (${IMM_PDF}/${IMM_TOTAL})"
+          echo "  - 썸네일: ${IMM_THUMB_PCT}% (${IMM_THUMB}/${IMM_TOTAL})"
+
+          # 95% 도달 시 완료 Issue 생성
+          if [ "$IMM_THUMB_PCT" -ge 95 ] && [ "$IMM_PDF_PCT" -ge 95 ] && [ "$THUMB_PCT" -ge 80 ]; then
+            DATE=$(date '+%Y-%m-%d')
+            # 같은 날 중복 issue 방지
+            EXISTS=$(gh issue list -R "$REPO" --label backfill-complete --state all --search "$DATE" --json number --jq 'length' 2>/dev/null || echo "0")
+            if [ "$EXISTS" = "0" ]; then
+              gh issue create -R "$REPO" \
+                --title "🎉 백필 완료 (${DATE})" \
+                --body "$(cat <<EOF
+한 바퀴 다 돌았습니다!
+
+## 진척 (${TODAY})
+- 진행 매물 ${TOTAL}건
+  - 썸네일 ${THUMB_PCT}%
+  - 문건/송달 ${DOCSNAP_PCT}%
+  - 권리분석 ${RGST_PCT}%
+- 임박 7일 ${IMM_TOTAL}건
+  - 매각PDF ${IMM_PDF_PCT}%
+  - 썸네일 ${IMM_THUMB_PCT}%
+
+V2.5+ 페이스로 시장 매칭 + 백필 완료. 이제 매일 신규 매물 따라잡기만 유지.
+EOF
+)" \
+                --label backfill-complete
+            fi
+          fi
+
       - name: 차단 의심 — Issue 생성
         if: steps.analyze.outputs.alert == 'true'
         env:
