@@ -41,3 +41,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node collectors/court-detail-collect.js --upsert --limit 100 --category vehicle
+
+      # detail 직후 1차 등기요약 즉시 추출 — self-process(매시간) 대기 안 함
+      - name: 1차 등기요약 즉시 (현황조사서 → atAppraisal)
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-tenant-from-curst.js --upload --limit 200

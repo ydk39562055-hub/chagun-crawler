@@ -38,6 +38,8 @@ function Run-Collector {
 $fastJobs = @(
   @{ name='spcfc-real';      cmdArgs=@('collectors/court-spcfc-fetch.js',     '--upload', '--limit', '10') },
   @{ name='spcfc-vehicle';   cmdArgs=@('collectors/court-spcfc-fetch.js',     '--upload', '--category', 'vehicle', '--limit', '10') },
+  # 매각PDF 받은 직후 즉시 2차 등기요약(atSale) 추출
+  @{ name='rgst-extract';    cmdArgs=@('collectors/court-rgst-extract.js',    '--upload', '--limit', '50') },
   @{ name='docs-snap';       cmdArgs=@('collectors/court-docs-snap.js',       '--upload', '--limit', '10') },
   @{ name='photo-rehost';    cmdArgs=@('collectors/court-photo-rehost.js',    '--upload', '--limit', '10') },
   @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '20') }
