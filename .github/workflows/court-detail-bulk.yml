@@ -6,7 +6,7 @@ name: 법원경매 detail 일괄 (90일 윈도우 V2)
 
 on:
   schedule:
-    - cron: '30 18,6 * * *'   # KST 03:30, 15:30
+    - cron: '56 */6 * * *'   # 매 6시간 (KST 02:56, 08:56, 14:56, 20:56) — 2배 가속
   workflow_dispatch:
 
 concurrency:
