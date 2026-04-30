@@ -1,4 +1,4 @@
-# 로컬 PC가 켜진 동안 GH Actions의 모든 collector를 미러 실행
+﻿# 로컬 PC가 켜진 동안 GH Actions의 모든 collector를 미러 실행
 # GitHub Actions가 느리거나 막혀 있을 때 백업/병행용
 #
 # 실행:
@@ -13,6 +13,9 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+# UTF-8 콘솔 출력 (Node.js 한글 출력 깨짐 방지)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+$OutputEncoding = [System.Text.UTF8Encoding]::new()
 Set-Location $PSScriptRoot
 
 $logDir = Join-Path $PSScriptRoot 'logs'

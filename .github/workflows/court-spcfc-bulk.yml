@@ -3,8 +3,8 @@ name: 법원경매 매각PDF 일괄 (매시간 V2.5)
 # V2.5: 매 30분 → 매시간 :15로 완화 (큐 cancel 회피). limit 10 그대로 = 240건/일 시장 매칭.
 
 on:
-  schedule:
-    - cron: '16 * * * *'   # 매시간 16분 (GitHub schedule 재인식)
+  # schedule 제거: GH Actions Ubuntu IP는 streamdocs PDF 다운로드 차단됨(0% 성공).
+  # 매각PDF는 로컬에서만 처리 (scripts/local-runner.ps1). 큐 공간을 다른 워크플로에 양보.
   workflow_dispatch:
 
 concurrency:

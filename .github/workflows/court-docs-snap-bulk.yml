@@ -35,11 +35,11 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-docs-snap.js --upload --limit 10
+        run: node collectors/court-docs-snap.js --upload --limit 15
 
       - name: 차량 문건/송달 5건
         working-directory: scripts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-docs-snap.js --upload --category vehicle --limit 10
+        run: node collectors/court-docs-snap.js --upload --category vehicle --limit 15
