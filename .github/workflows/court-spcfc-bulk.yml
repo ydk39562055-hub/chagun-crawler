@@ -29,11 +29,15 @@ jobs:
         working-directory: scripts
         run: npx playwright install chromium --with-deps
 
+      - name: 디버그 폴더 준비
+        run: mkdir -p ${{ runner.temp }}/spcfc-debug
+
       - name: 부동산 매각PDF 5건
         working-directory: scripts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SPCFC_DEBUG_DIR: ${{ runner.temp }}/spcfc-debug
         run: node collectors/court-spcfc-fetch.js --upload --limit 10
 
       - name: 차량 매각PDF 5건
@@ -41,4 +45,14 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SPCFC_DEBUG_DIR: ${{ runner.temp }}/spcfc-debug
         run: node collectors/court-spcfc-fetch.js --upload --category vehicle --limit 10
+
+      - name: 디버그 artifacts 업로드 (실패 진단용)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spcfc-debug-${{ github.run_id }}
+          path: ${{ runner.temp }}/spcfc-debug
+          if-no-files-found: ignore
+          retention-days: 7

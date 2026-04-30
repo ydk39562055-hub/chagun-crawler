@@ -106,16 +106,46 @@ async function fetchPdfForCase(ctx, { jiwonNm, year, csNum }, tmpDl) {
     const ecfs = pages.find(p => p.url().includes('ecfs.scourt.go.kr'));
     if (!ecfs) throw new Error('no-ecfs-popup');
 
-    // ecfs 뷰어 로드 대기 — 8s + 저장 버튼 폴링 (15s)
+    // ecfs 뷰어 로드 대기 — 8s
     // GH Actions Ubuntu runner는 한국 IP보다 느려 충분한 마진 필요
     await sleep(8000);
+
+    // 새 sgvo 뷰어: 문서 목록 체크박스 먼저 선택해야 "파일저장" 활성화됨
+    // 첫 번째 행 체크박스 클릭 시도 (체크박스 셀렉터 다양화)
+    const checkboxSelectors = [
+      'input[type="checkbox"][id*="chk"]:not([id*="all"])',
+      'input[type="checkbox"][id*="row"]',
+      'input[type="checkbox"][id*="grd"]',
+      'tbody input[type="checkbox"]',
+    ];
+    for (const sel of checkboxSelectors) {
+      const cb = await ecfs.$(sel);
+      if (cb) { await cb.click({ force: true, timeout: 5000 }).catch(() => {}); break; }
+    }
+    await sleep(1500);
+
+    // 파일저장 버튼 폴링 (셀렉터 다양화)
     let saveSelector = null;
     for (let i = 0; i < 30; i++) {
       if (await ecfs.$('#mf_btn_save')) { saveSelector = '#mf_btn_save'; break; }
       if (await ecfs.$('input[id*="body_btn_save"]')) { saveSelector = 'input[id*="body_btn_save"]'; break; }
+      if (await ecfs.$('input[id*="btn_save"]')) { saveSelector = 'input[id*="btn_save"]'; break; }
+      if (await ecfs.$('input[id*="btnSave"]')) { saveSelector = 'input[id*="btnSave"]'; break; }
+      if (await ecfs.$('button[id*="save"]')) { saveSelector = 'button[id*="save"]'; break; }
+      if (await ecfs.$('input[value="파일저장"]')) { saveSelector = 'input[value="파일저장"]'; break; }
       await sleep(500);
     }
-    if (!saveSelector) throw new Error('no-save-btn');
+    if (!saveSelector) {
+      // 디버그 캡처 (GH Actions artifact 용)
+      const debugDir = process.env.SPCFC_DEBUG_DIR || tmpDl;
+      try {
+        await ecfs.screenshot({ path: path.join(debugDir, `ecfs-no-save-btn-${Date.now()}.png`), fullPage: true });
+        const html = await ecfs.content();
+        await fs.writeFile(path.join(debugDir, `ecfs-no-save-btn-${Date.now()}.html`), html);
+        console.log(`    [debug] ecfs popup dump → ${debugDir}`);
+      } catch {}
+      throw new Error('no-save-btn');
+    }
     await ecfs.locator(saveSelector).click({ force: true, timeout: 10000 }).catch(() => {});
 
     // 확인 모달 있으면 처리 (dialog 자동 accept는 위에서 등록됨)
@@ -126,7 +156,21 @@ async function fetchPdfForCase(ctx, { jiwonNm, year, csNum }, tmpDl) {
     // 다운로드 대기 (25s→60s — GH Actions 응답 느림 대비)
     const deadline = Date.now() + 60000;
     while (!downloaded && Date.now() < deadline) await sleep(500);
-    if (!downloaded) throw new Error(downloadErr || 'download-timeout');
+    if (!downloaded) {
+      // 디버그 캡처: 파일저장 클릭 후에도 download 이벤트 없으면 popup 상태 dump
+      const debugDir = process.env.SPCFC_DEBUG_DIR || tmpDl;
+      try {
+        const ts = Date.now();
+        await ecfs.screenshot({ path: path.join(debugDir, `ecfs-dl-timeout-${ts}.png`), fullPage: true });
+        const html = await ecfs.content();
+        await fs.writeFile(path.join(debugDir, `ecfs-dl-timeout-${ts}.html`), html);
+        // 모든 페이지 URL 기록 (확인 모달이 다른 페이지로 나왔는지)
+        const allPages = ctx.pages().map(p => p.url()).join('\n');
+        await fs.writeFile(path.join(debugDir, `ecfs-dl-timeout-${ts}-pages.txt`), allPages);
+        console.log(`    [debug] download-timeout dump → ${debugDir}`);
+      } catch {}
+      throw new Error(downloadErr || 'download-timeout');
+    }
 
     const buf = await fs.readFile(downloaded.file);
     if (!buf.slice(0, 5).equals(Buffer.from('%PDF-'))) throw new Error('not-pdf-magic');
