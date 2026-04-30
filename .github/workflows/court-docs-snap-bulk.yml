@@ -5,7 +5,7 @@ name: 법원경매 문건/송달 일괄 (매시간 V2.5)
 
 on:
   schedule:
-    - cron: '35 * * * *'   # 매시간 35분 (photo :05, spcfc :15, docs-snap :35 — 시간 분산 강화)
+    - cron: '36 * * * *'   # 매시간 36분 (GitHub schedule 재인식)
   workflow_dispatch:
 
 concurrency:

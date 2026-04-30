@@ -4,7 +4,7 @@ name: 법원경매 매각PDF 일괄 (매시간 V2.5)
 
 on:
   schedule:
-    - cron: '15 * * * *'   # 매시간 15분
+    - cron: '16 * * * *'   # 매시간 16분 (GitHub schedule 재인식)
   workflow_dispatch:
 
 concurrency:
