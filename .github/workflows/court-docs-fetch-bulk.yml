@@ -5,7 +5,7 @@ name: 법원경매 감정평가서 일괄 (매 2시간 V2)
 
 on:
   schedule:
-    - cron: '0 */2 * * *'   # 매 2시간
+    - cron: '26 * * * *'   # 매시간 :26 (kapanet 외부 API)
   workflow_dispatch:
 
 concurrency:
@@ -32,4 +32,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-docs-fetch.js --upload --limit 20
+        run: node collectors/court-docs-fetch.js --upload --limit 30
