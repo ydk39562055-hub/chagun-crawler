@@ -22,3 +22,7 @@ scripts/*.log
 # OS
 .DS_Store
 Thumbs.db
+
+# debug dumps
+dump*.png
+dump*.html
