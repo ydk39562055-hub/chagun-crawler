@@ -225,27 +225,28 @@ jobs:
           # 95% 도달 시 완료 Issue 생성
           if [ "$IMM_THUMB_PCT" -ge 95 ] && [ "$IMM_PDF_PCT" -ge 95 ] && [ "$THUMB_PCT" -ge 80 ]; then
             DATE=$(date '+%Y-%m-%d')
-            # 같은 날 중복 issue 방지
             EXISTS=$(gh issue list -R "$REPO" --label backfill-complete --state all --search "$DATE" --json number --jq 'length' 2>/dev/null || echo "0")
             if [ "$EXISTS" = "0" ]; then
+              BODY_FILE=$(mktemp)
+              {
+                echo "한 바퀴 다 돌았습니다!"
+                echo ""
+                echo "## 진척 (${TODAY})"
+                echo "- 진행 매물 ${TOTAL}건"
+                echo "  - 썸네일 ${THUMB_PCT}%"
+                echo "  - 문건/송달 ${DOCSNAP_PCT}%"
+                echo "  - 권리분석 ${RGST_PCT}%"
+                echo "- 임박 7일 ${IMM_TOTAL}건"
+                echo "  - 매각PDF ${IMM_PDF_PCT}%"
+                echo "  - 썸네일 ${IMM_THUMB_PCT}%"
+                echo ""
+                echo "V2.5+ 페이스로 시장 매칭 + 백필 완료. 이제 매일 신규 매물 따라잡기만 유지."
+              } > "$BODY_FILE"
               gh issue create -R "$REPO" \
                 --title "🎉 백필 완료 (${DATE})" \
-                --body "$(cat <<EOF
-한 바퀴 다 돌았습니다!
-
-## 진척 (${TODAY})
-- 진행 매물 ${TOTAL}건
-  - 썸네일 ${THUMB_PCT}%
-  - 문건/송달 ${DOCSNAP_PCT}%
-  - 권리분석 ${RGST_PCT}%
-- 임박 7일 ${IMM_TOTAL}건
-  - 매각PDF ${IMM_PDF_PCT}%
-  - 썸네일 ${IMM_THUMB_PCT}%
-
-V2.5+ 페이스로 시장 매칭 + 백필 완료. 이제 매일 신규 매물 따라잡기만 유지.
-EOF
-)" \
+                --body-file "$BODY_FILE" \
                 --label backfill-complete
+              rm -f "$BODY_FILE"
             fi
           fi
 
@@ -253,23 +254,27 @@ EOF
         if: steps.analyze.outputs.alert == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REASONS: ${{ steps.analyze.outputs.reasons }}
+          STATS: ${{ steps.analyze.outputs.stats }}
         run: |
           DATE=$(date '+%Y-%m-%d')
+          BODY_FILE=$(mktemp)
+          {
+            echo "어제 24시간 모니터링 결과 차단 또는 비정상 신호 감지됨."
+            echo ""
+            echo "## 의심 사유"
+            echo "$REASONS"
+            echo ""
+            echo "$STATS"
+            echo ""
+            echo "## 권장 조치"
+            echo "1. 실패 워크플로 로그 직접 확인"
+            echo "2. 일시적이면 그대로 두고 다음날 재모니터"
+            echo "3. 지속되면 V2 → V1 후퇴 (limit/빈도 줄임)"
+            echo "4. 명확한 차단이면 cron schedule 일시 정지"
+          } > "$BODY_FILE"
           gh issue create -R "${{ github.repository }}" \
             --title "🚨 크롤러 차단 의심 (${DATE})" \
-            --body "$(cat <<'BODY'
-어제 24시간 모니터링 결과 차단 또는 비정상 신호 감지됨.
-
-## 의심 사유
-${{ steps.analyze.outputs.reasons }}
-
-${{ steps.analyze.outputs.stats }}
-
-## 권장 조치
-1. 실패 워크플로 로그 직접 확인
-2. 일시적이면 그대로 두고 다음날 재모니터
-3. 지속되면 V2 → V1 후퇴 (limit/빈도 줄임)
-4. 명확한 차단이면 cron schedule 일시 정지
-BODY
-)" \
+            --body-file "$BODY_FILE" \
             --label "monitoring"
+          rm -f "$BODY_FILE"
