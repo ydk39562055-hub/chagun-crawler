@@ -199,6 +199,25 @@ async function main() {
           errors++;
           continue;
         }
+
+        // 차량이면 vehicle_details에도 upsert
+        if (it.category === 'vehicle' && raw.carNm) {
+          const FUEL_MAP = {
+            '0001001': 'gasoline', '0001002': 'diesel', '0001003': 'lpg',
+            '0001004': 'hybrid', '0001005': 'gasoline', '0001006': 'ev', '0001009': 'other',
+          };
+          const KNOWN_MAKERS = ['현대','기아','제네시스','쌍용','르노','쉐보레','BMW','벤츠','메르세데스','아우디','폭스바겐','포르쉐','마칸','파나메라','카이엔','볼보','도요타','토요타','렉서스','혼다','포드','지프','캐딜락','테슬라','마세라티','페라리','람보르기니','롤스로이스','벤틀리','맥라렌','애스턴마틴','BYD'];
+          let maker = null;
+          for (const m of KNOWN_MAKERS) if (raw.carNm.includes(m)) { maker = m; break; }
+          const yr = typeof raw.carYrtype === 'number' ? raw.carYrtype : (raw.carYrtype ? parseInt(raw.carYrtype, 10) || null : null);
+          await supabase.from('vehicle_details').upsert({
+            auction_item_id: it.id,
+            maker,
+            model: String(raw.carNm).slice(0, 100),
+            year: yr,
+            fuel_type: raw.fuelKindcd ? (FUEL_MAP[raw.fuelKindcd] || null) : null,
+          }, { onConflict: 'auction_item_id' });
+        }
       }
 
       ok++;
