@@ -153,8 +153,9 @@ async function fetchPdfForCase(ctx, { jiwonNm, year, csNum }, tmpDl) {
     const okBtn = await ecfs.$('input[value="확인"]:visible');
     if (okBtn) await okBtn.click({ force: true, timeout: 6000 }).catch(() => {});
 
-    // 다운로드 대기 (25s→60s — GH Actions 응답 느림 대비)
-    const deadline = Date.now() + 60000;
+    // 다운로드 대기 (60s→180s — GH Actions Ubuntu runner는 한국 IP 아니라
+    // streamdocs PDF 생성/응답이 매우 느림. HTML title도 "다운로드 받기까지 다소 시간이 소요"
+    const deadline = Date.now() + 180000;
     while (!downloaded && Date.now() < deadline) await sleep(500);
     if (!downloaded) {
       // 디버그 캡처: 파일저장 클릭 후에도 download 이벤트 없으면 popup 상태 dump

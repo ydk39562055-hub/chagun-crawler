@@ -15,7 +15,7 @@ jobs:
   spcfc-bulk:
     name: 매각PDF 5건 (부+차)
     runs-on: ubuntu-latest
-    timeout-minutes: 25   # limit 10건 실측 9분, 13분 가는 케이스 대비 25분 마진
+    timeout-minutes: 50   # download timeout 180s 반영 — 사건당 4분 × 20(부+차) + 마진
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
