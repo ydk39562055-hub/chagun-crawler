@@ -49,12 +49,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node collectors/court-rgst-extract.js --upload --limit 100
 
-      - name: 1차 권리분석 (현황조사서 → atAppraisal)
-        working-directory: scripts
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-tenant-from-curst.js --upload --limit 100
+      # tenant-from-curst는 detail-bulk 안에서 처리 (race 회피).
+      # 여기서 같은 raw_data를 동시에 update하면 read-modify-write race 위험.
 
       - name: 차량 매각PDF 파싱
         working-directory: scripts
