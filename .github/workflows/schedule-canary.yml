@@ -1,15 +1,35 @@
-name: Schedule Canary (진단용)
+name: Schedule Canary + 백업 디스패처
 
-# 단순한 schedule 테스트 — GitHub Actions schedule이 발화되는지 검증.
-# 매 5분 cron + 워크플로 자체는 echo만. 발화 자체가 핵심.
+# 매 5분 schedule 발화 → 헬스체크 + 시간대별 다른 워크플로 강제 dispatch.
+# GitHub Actions의 schedule outage(11시간 멈춤 등) 대응 백업 시스템.
+# detail-bulk 같이 schedule이 자주 cancel/skip 되는 워크플로를 강제 발화.
 
 on:
   schedule:
     - cron: '*/5 * * * *'   # 매 5분
   workflow_dispatch:
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   canary:
     runs-on: ubuntu-latest
     steps:
       - run: echo "schedule 발화됨 - $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      # 시간대별 백업 dispatch (schedule이 이미 발화했으면 concurrency 그룹이 막아 중복 X)
+      - name: detail-bulk 백업 dispatch (6시간마다 KST 03/09/15/21)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MIN=$(date -u +%M)
+          HOUR=$(date -u +%H)
+          # KST 03:00=UTC 18:00, 09:00=00:00, 15:00=06:00, 21:00=12:00
+          # :05~:09 윈도우(매 5분 발화 중 한 번만)
+          if [ "$MIN" -lt 10 ] && { [ "$HOUR" = "18" ] || [ "$HOUR" = "00" ] || [ "$HOUR" = "06" ] || [ "$HOUR" = "12" ]; }; then
+            echo "백업 dispatch: court-detail-bulk (UTC ${HOUR}:${MIN})"
+            # 같은 시간대 이미 도는 detail-bulk 있으면 concurrency 그룹이 막음(중복 안전)
+            gh workflow run court-detail-bulk.yml --repo ${{ github.repository }} || echo "이미 진행 중이거나 실패"
+          fi
