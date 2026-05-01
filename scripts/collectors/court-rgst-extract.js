@@ -156,7 +156,18 @@ function parseSpcfc(text) {
       }
       if (candidates.length > 0) {
         candidates.sort((a, b) => a.date.localeCompare(b.date));
-        res.seniorRight = candidates[0];
+        // raw 텍스트(브래킷 → 괄호 변환, 공백 정리)
+        const rawText = blockMatch[1]
+          .replace(/\[/g, '(').replace(/\]/g, ')')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 400);
+        res.seniorRight = {
+          date: candidates[0].date,
+          kind: candidates[0].kind,
+          raw: rawText,
+          parts: candidates, // 모든 등기 일자 후보
+        };
       }
     }
   }
