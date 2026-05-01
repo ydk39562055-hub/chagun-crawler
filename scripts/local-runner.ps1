@@ -42,7 +42,9 @@ $fastJobs = @(
   @{ name='rgst-extract';    cmdArgs=@('collectors/court-rgst-extract.js',    '--upload', '--limit', '50') },
   @{ name='docs-snap';       cmdArgs=@('collectors/court-docs-snap.js',       '--upload', '--limit', '10') },
   @{ name='photo-rehost';    cmdArgs=@('collectors/court-photo-rehost.js',    '--upload', '--limit', '10') },
-  @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '50') }
+  @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '50') },
+  # 차량 사진은 court 직접 URL이 96% 404 → photos-from-page로 다시 수집
+  @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '10') }
 )
 
 # 호출0 자체처리 — 가벼움 매시간 가능
@@ -59,7 +61,6 @@ $slowJobs = @(
   @{ name='detail-vehicle';  cmdArgs=@('collectors/court-detail-collect.js',  '--upsert', '--limit', '100', '--category', 'vehicle') },
   @{ name='vehicle-docs';    cmdArgs=@('collectors/court-vehicle-docs-fetch.js',  '--upload', '--limit', '4') },
   @{ name='vehicle-snap';    cmdArgs=@('collectors/court-docs-snap.js',           '--upload', '--category', 'vehicle', '--limit', '6') },
-  @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '4') },
   @{ name='onbid-vehicle';   cmdArgs=@('collectors/onbid-vehicle-list.js',    '--upsert', '--all') },
   @{ name='onbid-vehicle-enrich'; cmdArgs=@('collectors/onbid-vehicle-enrich.js', '--upsert') },
   @{ name='onbid-realestate';cmdArgs=@('collectors/onbid-realestate-list.js', '--upsert', '--all') }

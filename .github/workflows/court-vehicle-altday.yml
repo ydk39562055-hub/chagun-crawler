@@ -1,12 +1,12 @@
 name: 법원경매 차량 매일 수집
 
-# 매일 KST 05:30. 차량 docs · photos · 문건 일괄.
-# public 레포 무료 한도 무제한 → 격일 → 매일로 변경.
-# 부동산 daily 끝난 뒤 충분한 간격. concurrency 그룹 동일 — 우연한 중첩 자동 차단.
+# 매 6시간 (KST 05:30/11:30/17:30/23:30). 차량 docs · photos · 문건 일괄.
+# 차량 매물 사진이 court 직접 URL → 404 다수. photos-from-page collector
+# 빈도 + limit 증가로 백필 가속.
 
 on:
   schedule:
-    - cron: '30 20 * * *'   # KST 05:30
+    - cron: '30 */6 * * *'   # 매 6시간 (UTC 20:30, 02:30, 08:30, 14:30 = KST 05:30/11:30/17:30/23:30)
   workflow_dispatch:
 
 concurrency:
@@ -36,14 +36,14 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-vehicle-docs-fetch.js --upload --limit 4
+        run: node collectors/court-vehicle-docs-fetch.js --upload --limit 10
 
       - name: 차량 문건/송달 (_detail 있는 임박 건)
         working-directory: scripts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-docs-snap.js --upload --category vehicle --limit 6
+        run: node collectors/court-docs-snap.js --upload --category vehicle --limit 10
 
   vehicle-photos:
     name: 차량 페이지 사진
@@ -68,4 +68,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-vehicle-photos-from-page.js --upload --limit 4
+        run: node collectors/court-vehicle-photos-from-page.js --upload --limit 15
