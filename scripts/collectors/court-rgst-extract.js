@@ -135,12 +135,30 @@ function parseSpcfc(text) {
   };
 
   // 1. 최선순위 설정 (말소기준권리)
-  const senior = t.match(/최선순위\s*\n?\s*설정\s*\n?\s*(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*([가-힣]+)?/);
+  // 단순 형식: "최선순위 설정 2024.01.05. 근저당권"
+  let senior = t.match(/최선순위\s*\n?\s*설정\s*\n?\s*(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*([가-힣]+)?/);
   if (senior) {
     res.seniorRight = {
       date: toIsoDate(senior[1], senior[2], senior[3]),
       kind: senior[4] || null,
     };
+  } else {
+    // 다중 필지/건물 형식: "최선순위 설정 [토지] 381-37: 2019.07.01. 근저당권 [건물] 2021.02.26. 근저당권 배당요구종기..."
+    // "배당요구종기" 직전까지의 블록에서 모든 일자+권리 추출 후 가장 빠른 일자를 말소기준으로
+    const blockMatch = t.match(/최선순위\s*\n?\s*설정([\s\S]+?)(?:배당요구종기|부동산의\s*점유자)/);
+    if (blockMatch) {
+      const dateRe = /(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*([가-힣]+)?/g;
+      const candidates = [];
+      let m;
+      while ((m = dateRe.exec(blockMatch[1]))) {
+        const isoDate = toIsoDate(m[1], m[2], m[3]);
+        if (isoDate) candidates.push({ date: isoDate, kind: m[4] || null });
+      }
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a.date.localeCompare(b.date));
+        res.seniorRight = candidates[0];
+      }
+    }
   }
   const due = t.match(/배당요구종기\s*\n?\s*(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
   if (due) res.bngDemandDue = toIsoDate(due[1], due[2], due[3]);
@@ -271,10 +289,14 @@ async function main() {
     .gte('auction_date', todayIso)
     .lte('auction_date', window90Iso)
     .limit(LIMIT * 3);
+  const FORCE = process.argv.includes('--force');
   if (CASE_NUMBER) {
     q = q.eq('case_number', CASE_NUMBER);
+  } else if (FORCE) {
+    // 강제 재처리: 매각PDF 있는 모든 매물 (이미 처리된 것도 다시)
+    q = q.or('raw_data->_detail->dspslGdsSpcfcPdf.not.is.null,raw_data->_detail->pdfs->매각물건명세서.not.is.null');
   } else {
-    // 매각물건명세서 PDF 보유 사건만 후보로. (둘 중 하나라도 있으면 OK)
+    // 기본: 매각PDF 있고 atSale 없는 매물
     q = q.or('raw_data->_detail->dspslGdsSpcfcPdf.not.is.null,raw_data->_detail->pdfs->매각물건명세서.not.is.null')
          .is('raw_data->_detail->rgstSummary->atSale', null);
   }
