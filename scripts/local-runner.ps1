@@ -44,7 +44,9 @@ $fastJobs = @(
   @{ name='photo-rehost';    cmdArgs=@('collectors/court-photo-rehost.js',    '--upload', '--limit', '10') },
   @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '50') },
   # 차량 사진은 court 직접 URL이 96% 404 → photos-from-page로 다시 수집
-  @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '10') }
+  @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '10') },
+  # 부동산 사진도 같은 패턴 (페이지 base64 캡처)
+  @{ name='realestate-photos'; cmdArgs=@('collectors/court-realestate-photos-from-page.js', '--upload', '--limit', '10') }
 )
 
 # 호출0 자체처리 — 가벼움 매시간 가능

@@ -1,0 +1,38 @@
+name: 법원경매 부동산 페이지 사진 백필 (매 4시간)
+
+# court 직접 URL이 만료된 부동산 매물의 사진을 페이지(PGJ15BA00)에서 base64로 캡처.
+# court-photo-rehost가 받지 못한 깨진 매물 보완.
+
+on:
+  schedule:
+    - cron: '40 */4 * * *'   # 매 4시간 :40 (다른 워크플로와 시간 분리)
+  workflow_dispatch:
+
+concurrency:
+  group: court-crawl
+  cancel-in-progress: false
+
+jobs:
+  realestate-photos:
+    name: 부동산 페이지 사진 15건
+    runs-on: ubuntu-latest
+    timeout-minutes: 60   # Playwright + 사건당 25~35초 (15건 = 약 8~10분)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+      - name: Playwright Chromium
+        working-directory: scripts
+        run: npx playwright install chromium --with-deps
+
+      - name: 부동산 사진 페이지 캡처
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node collectors/court-realestate-photos-from-page.js --upload --limit 15

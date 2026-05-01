@@ -1,0 +1,217 @@
+// 부동산 상세 페이지(PGJ15BA00)에서 사진 영역 직접 수집.
+// court 직접 URL이 만료되어 photo-rehost가 못 받는 매물 보완.
+//
+// 전략:
+//   1) deep link로 PGJ15BA00 진입 (cortOfcCd, csNo, dspslGdsSeq)
+//   2) 페이지 안의 사진 src 수집 (base64 또는 살아있는 court URL)
+//   3) 외부 URL이면 fetch 후 buf, base64면 decode → Supabase 업로드
+//
+// 실행:
+//   node collectors/court-realestate-photos-from-page.js --case 2024타경118390
+//   node collectors/court-realestate-photos-from-page.js --upload --limit 5
+
+import 'dotenv/config';
+import { createClient } from '@supabase/supabase-js';
+import { chromium } from 'playwright';
+
+const args = process.argv.slice(2);
+const argOf = (f, fb) => { const i = args.indexOf(f); return i >= 0 && i + 1 < args.length ? args[i + 1] : fb; };
+const DO_UPLOAD = args.includes('--upload');
+const DEBUG = args.includes('--debug');
+const LIMIT = parseInt(argOf('--limit', '5'), 10) || 5;
+const CASE_NUMBER = argOf('--case', null);
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const rand = (a, b) => Math.floor(Math.random() * (b - a)) + a;
+
+function parseCaseNo(s) {
+  const m = String(s || '').match(/^(\d{4})\D+(\d+)/);
+  return m ? { year: m[1], csNum: m[2] } : null;
+}
+
+async function fetchPagePhotos(ctx, raw, caseNumber) {
+  const page = await ctx.newPage();
+  page.on('dialog', async d => { try { await d.accept(); } catch {} });
+  try {
+    const jiwonNm = raw.jiwonNm || raw._detail?.base?.cortSptNm || raw._detail?.base?.cortOfcNm;
+    const parsed = parseCaseNo(caseNumber);
+    if (!jiwonNm || !parsed) throw new Error('missing-jiwonNm-or-caseno');
+
+    await page.goto('https://www.courtauction.go.kr/pgj/index.on', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await sleep(1500);
+
+    // PGJ159M00 검색 → 결과 클릭
+    await page.goto('https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml', { waitUntil: 'networkidle', timeout: 60000 });
+    await sleep(2500);
+    await page.selectOption('#mf_wfm_mainFrame_sbx_auctnCsSrchCortOfc', { value: jiwonNm });
+    await sleep(250);
+    await page.selectOption('#mf_wfm_mainFrame_sbx_auctnCsSrchCsYear', { value: String(parsed.year) });
+    await sleep(250);
+    await page.fill('#mf_wfm_mainFrame_ibx_auctnCsSrchCsNo', String(parsed.csNum));
+    await sleep(300);
+    await page.click('#mf_wfm_mainFrame_btn_auctnCsSrchBtn');
+    await sleep(7000);
+
+    // "물건상세조회" 버튼 클릭 → 새 페이지에서 매물 상세 열림
+    const dtlBtn = await page.$('input[id$="_btn_gdsDtlInq"]');
+    if (!dtlBtn) throw new Error('no-detail-btn');
+    // 클릭 후 새 페이지(popup) 대기
+    const [newPage] = await Promise.all([
+      ctx.waitForEvent('page', { timeout: 15000 }).catch(() => null),
+      dtlBtn.click({ force: true, timeout: 10000 }),
+    ]);
+    const targetPage = newPage || page;
+    await targetPage.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+    await sleep(rand(4000, 6000));
+
+    if (DEBUG) {
+      const html = await targetPage.content();
+      const fs = await import('node:fs');
+      const os = await import('node:os');
+      const dumpPath = (process.env.RUNNER_TEMP || os.tmpdir()) + '/realestate-page.html';
+      fs.writeFileSync(dumpPath, html);
+      console.log(`    [debug] HTML dumped to ${dumpPath} (${html.length}b)`);
+    }
+
+    // 모든 이미지 src 수집 (base64 또는 court URL)
+    const imgs = await targetPage.evaluate(() => {
+      const out = [];
+      const allImgs = document.querySelectorAll('img');
+      for (const el of allImgs) {
+        const src = el.src || '';
+        if (!src) continue;
+        // placeholder 제외
+        if (/loading|spinner|btn_|ico_|logo|footer|header/i.test(src)) continue;
+        const r = el.getBoundingClientRect();
+        // 너무 작은 이미지(아이콘) 제외
+        if (r.width < 80 || r.height < 80) continue;
+        out.push({
+          src,
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+          id: el.id || '',
+          alt: el.alt || '',
+        });
+      }
+      return out;
+    });
+    return imgs;
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+async function uploadOne(supabase, raw, src, idx) {
+  const boCd = raw.boCd;
+  const saNo = String(raw.saNo);
+  let buf, ext, mime;
+
+  const m = src.match(/^data:(image\/\w+);base64,(.+)$/);
+  if (m) {
+    mime = m[1];
+    ext = mime === 'image/jpeg' ? 'jpg' : (mime.split('/')[1] || 'png');
+    buf = Buffer.from(m[2], 'base64');
+  } else if (src.startsWith('http')) {
+    const r = await fetch(src, {
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.courtauction.go.kr/' },
+    });
+    if (!r.ok) return null;
+    buf = Buffer.from(await r.arrayBuffer());
+    const sig = buf.slice(0, 5).toString('hex');
+    if (sig.startsWith('ffd8ff')) { ext = 'jpg'; mime = 'image/jpeg'; }
+    else if (sig.startsWith('89504e')) { ext = 'png'; mime = 'image/png'; }
+    else return null;
+  } else {
+    return null;
+  }
+
+  if (buf.length < 1500) return null; // placeholder/icon
+  const path = `${boCd}/${saNo}/page-photo-${String(idx + 1).padStart(2, '0')}.${ext}`;
+  const { error } = await supabase.storage.from('auction-photos').upload(path, buf, { contentType: mime, upsert: true });
+  if (error) { console.log(`    upload err ${path}: ${error.message}`); return null; }
+  return {
+    url: `${process.env.SUPABASE_URL}/storage/v1/object/public/auction-photos/${path}`,
+    path,
+    source: 'detail_page',
+  };
+}
+
+async function processOne(ctx, supabase, item) {
+  const raw = item.raw_data ?? {};
+  if (!raw.boCd || !raw.saNo) return { ok: false, reason: 'missing-ids' };
+
+  const imgs = await fetchPagePhotos(ctx, raw, item.case_number);
+  console.log(`    [${item.case_number}] 페이지에서 후보 이미지 ${imgs.length}장`);
+  if (imgs.length === 0) return { ok: false, reason: 'no-imgs-on-page' };
+
+  if (!DO_UPLOAD) return { ok: true, dry: true, count: imgs.length, sample: imgs.slice(0, 3).map(i => i.src.slice(0, 80)) };
+
+  const photoMeta = [];
+  for (let i = 0; i < imgs.length; i++) {
+    const meta = await uploadOne(supabase, raw, imgs[i].src, i);
+    if (meta) photoMeta.push(meta);
+  }
+  if (!photoMeta.length) return { ok: false, reason: 'all-decode-fail' };
+
+  const newRaw = { ...raw, _photos: photoMeta, _photos_source: 'detail_page', _photos_extracted_at: new Date().toISOString() };
+  const { error } = await supabase.from('auction_items').update({
+    raw_data: newRaw,
+    thumbnail_url: photoMeta[0].url,
+  }).eq('id', item.id);
+  if (error) return { ok: false, reason: 'db-' + error.message };
+  return { ok: true, count: photoMeta.length };
+}
+
+async function main() {
+  console.log(`Court Realestate Photos from Page (upload=${DO_UPLOAD}, limit=${LIMIT}${CASE_NUMBER ? ', case=' + CASE_NUMBER : ''})`);
+  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const future = new Date(); future.setDate(future.getDate() + 90);
+
+  let q = supabase.from('auction_items')
+    .select('id, case_number, raw_data, auction_date')
+    .eq('source', 'court_auction').eq('category', 'real_estate')
+    .not('raw_data->boCd', 'is', null)
+    .gte('auction_date', today)
+    .lte('auction_date', future.toISOString().slice(0, 10))
+    .order('auction_date', { ascending: true });
+  if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
+  else q = q.like('thumbnail_url', '%courtauction.go.kr%'); // court 직접 URL인 깨진 매물만
+  const { data, error } = await q.limit(LIMIT * 3);
+  if (error) { console.error(error); process.exit(1); }
+  console.log(`대상 ${data.length}건`);
+
+  if (data.length === 0) return;
+
+  const browser = await chromium.launch({ headless: true });
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 2400 }, locale: 'ko-KR' });
+  let ok = 0, fail = 0, consec = 0;
+  try {
+    for (const it of data) {
+      if (ok >= LIMIT) break;
+      try {
+        const r = await processOne(ctx, supabase, it);
+        if (r.ok) {
+          console.log(`[OK] ${it.case_number} ${r.count}장${r.dry ? ' (dry)' : ''}`);
+          if (r.sample) for (const s of r.sample) console.log(`  - ${s}`);
+          ok++; consec = 0;
+        } else {
+          console.log(`[SKIP] ${it.case_number} ${r.reason}`);
+          fail++;
+          if (!/no-imgs|missing-ids/.test(r.reason)) consec++;
+        }
+      } catch (e) {
+        console.log(`[FAIL] ${it.case_number} ${e.message.slice(0, 80)}`);
+        fail++; consec++;
+      }
+      if (consec >= 3) { console.log('3건 연속 차단성 실패 → 중단'); break; }
+      await sleep(rand(3000, 5000));
+    }
+  } finally {
+    await ctx.close();
+    await browser.close();
+  }
+  console.log(`완료: ok=${ok} fail=${fail}`);
+}
+main().catch(e => { console.error(e); process.exit(1); });
