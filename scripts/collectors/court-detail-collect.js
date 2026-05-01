@@ -86,15 +86,22 @@ async function main() {
   const todayIso = new Date().toISOString().slice(0, 10);
   const window90 = new Date(); window90.setDate(window90.getDate() + 90);
   const window90Iso = window90.toISOString().slice(0, 10);
+  const REFETCH_PHOTOS = args.includes('--refetch-photos');
+  // --refetch-photos: thumbnail이 court 직접 URL(만료된)인 매물 재처리
   let q = supabase
     .from('auction_items')
     .select('id, case_number, category, raw_data')
     .eq('source', 'court_auction')
-    .is('thumbnail_url', null)
     .gte('auction_date', todayIso)
     .lte('auction_date', window90Iso)
     .order('auction_date', { ascending: true, nullsFirst: false })
     .limit(LIMIT);
+  if (REFETCH_PHOTOS) {
+    // court 직접 URL인 thumbnail (만료 가능성 높음)
+    q = q.like('thumbnail_url', '%courtauction.go.kr%');
+  } else if (!CASE_NUMBER) {
+    q = q.is('thumbnail_url', null);
+  }
   if (CATEGORY !== 'all') q = q.eq('category', CATEGORY);
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
   const { data: items, error: qErr } = await q;
@@ -135,13 +142,45 @@ async function main() {
 
       const d = r.data?.dma_result ?? {};
 
-      // 사진 추출
-      const photos = (d.csPicLst ?? []).map((p, i) => ({
+      // 사진 추출 + 즉시 Supabase에 rehost (court URL은 짧은 시간만 유효)
+      const courtPhotos = (d.csPicLst ?? []).map((p, i) => ({
         order: i,
         url: p.picFileUrl ? `https://www.courtauction.go.kr${p.picFileUrl}${p.picTitlNm}` : null,
         title: p.picTitlNm,
         type_code: p.cortAuctnPicDvsCd,
       })).filter(p => p.url);
+
+      const photos = [];
+      for (const cp of courtPhotos) {
+        try {
+          const imgRes = await fetch(cp.url, {
+            headers: { 'User-Agent': UA(), 'Referer': 'https://www.courtauction.go.kr/' },
+          });
+          if (!imgRes.ok) continue;
+          const buf = Buffer.from(await imgRes.arrayBuffer());
+          if (buf.length < 1000) continue;
+          // 첫 5바이트로 이미지 판별
+          const sig = buf.slice(0, 5).toString('hex');
+          const ext = sig.startsWith('ffd8ff') ? 'jpg' : (sig.startsWith('89504e') ? 'png' : 'jpg');
+          const path = `${raw.boCd}/${String(raw.saNo)}/photo-${String(cp.order + 1).padStart(2, '0')}.${ext}`;
+          if (DO_UPSERT) {
+            const { error: upErr } = await supabase.storage.from('auction-photos').upload(path, buf, {
+              contentType: ext === 'png' ? 'image/png' : 'image/jpeg', upsert: true,
+            });
+            if (upErr) { console.log(`    photo ${cp.order} upload skip: ${upErr.message}`); continue; }
+          }
+          photos.push({
+            order: cp.order,
+            url: `${process.env.SUPABASE_URL}/storage/v1/object/public/auction-photos/${path}`,
+            path,
+            title: cp.title,
+            type_code: cp.type_code,
+            source: 'detail',
+          });
+        } catch (e) {
+          // 사진 다운로드 실패는 무시 (court URL 만료 등)
+        }
+      }
 
       // 상세 정보 추출
       const goods = d.dspslGdsDxdyInfo ?? {};
