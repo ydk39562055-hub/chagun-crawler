@@ -1,0 +1,65 @@
+name: 법원경매 status 자동정리 (매일)
+
+# 매각일 지났는데 status='upcoming'인 매물을 'sold'로 자동 변환.
+# 사용자 사이트 진행중 목록에서 매각 끝난 매물이 잘못 노출되는 문제 방지.
+# 사이트 호출 0 (DB만 처리).
+
+on:
+  schedule:
+    - cron: '0 18 * * *'   # 매일 KST 03:00 (UTC 18:00 전날)
+  workflow_dispatch:
+
+jobs:
+  status-cleanup:
+    name: status upcoming → sold (매각일 과거)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: PATCH status via PostgREST
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          TODAY=$(date -u +%Y-%m-%d)
+          echo "오늘(UTC): $TODAY — 매각일 < $TODAY 이고 status='upcoming'인 court_auction 매물 정리"
+
+          # 사전 카운트
+          BEFORE=$(curl -s -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Range: 0-0" -H "Prefer: count=exact" \
+            "${SUPABASE_URL}/rest/v1/auction_items?select=id&status=eq.upcoming&auction_date=lt.${TODAY}&source=eq.court_auction" -i 2>&1 \
+            | grep -i "Content-Range" | grep -oE "/[0-9]+" | tr -d '/')
+          echo "정리 대상: ${BEFORE:-0}건"
+
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0" ]; then
+            echo "정리할 항목 없음."
+            exit 0
+          fi
+
+          # PATCH
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X PATCH "${SUPABASE_URL}/rest/v1/auction_items?status=eq.upcoming&auction_date=lt.${TODAY}&source=eq.court_auction" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d '{"status": "sold"}')
+
+          if [ "$RESPONSE" != "204" ]; then
+            echo "PATCH 실패 HTTP $RESPONSE"
+            exit 1
+          fi
+          echo "PATCH 성공 (HTTP 204) — ${BEFORE}건 처리"
+
+          # 사후 검증
+          AFTER=$(curl -s -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Range: 0-0" -H "Prefer: count=exact" \
+            "${SUPABASE_URL}/rest/v1/auction_items?select=id&status=eq.upcoming&auction_date=lt.${TODAY}&source=eq.court_auction" -i 2>&1 \
+            | grep -i "Content-Range" | grep -oE "/[0-9]+" | tr -d '/')
+          echo "정리 후 잔여: ${AFTER:-0}건"
+          if [ "$AFTER" != "0" ] && [ -n "$AFTER" ]; then
+            echo "WARN: 일부 미처리"
+            exit 1
+          fi
