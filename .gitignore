@@ -26,3 +26,8 @@ Thumbs.db
 # debug dumps
 dump*.png
 dump*.html
+
+# debug dumps
+*.html
+check-*.mjs
+pick-*.mjs
