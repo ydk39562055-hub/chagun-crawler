@@ -5,10 +5,11 @@
 #   pwsh -File scripts/local-runner.ps1                   # 전체 사이클 무한 반복
 #   pwsh -File scripts/local-runner.ps1 -Mode fast        # 가벼운 collector만 (30분 주기)
 #   pwsh -File scripts/local-runner.ps1 -Mode slow        # 무거운 collector만 (매일 1회용)
+#   pwsh -File scripts/local-runner.ps1 -Mode spcfc       # 매각PDF만 (GH IP 차단으로 로컬만 처리 가능)
 #   pwsh -File scripts/local-runner.ps1 -Once             # 한 사이클만 실행하고 종료
 
 param(
-  [ValidateSet('full', 'fast', 'slow')] [string]$Mode = 'full',
+  [ValidateSet('full', 'fast', 'slow', 'spcfc')] [string]$Mode = 'full',
   [switch]$Once
 )
 
@@ -57,6 +58,13 @@ $selfJobs = @(
   @{ name='vehicle-spcfc';   cmdArgs=@('collectors/court-vehicle-spcfc-extract.js','--upload', '--limit', '100') }
 )
 
+# 매각PDF만 — GH IP 차단 우회용 최소 모드
+# (GH가 나머지 collector를 다 처리하는 안정 상태에서 PC 부담 줄이기 위해)
+$spcfcJobs = @(
+  @{ name='spcfc-real';      cmdArgs=@('collectors/court-spcfc-fetch.js',     '--upload', '--limit', '10') },
+  @{ name='spcfc-vehicle';   cmdArgs=@('collectors/court-spcfc-fetch.js',     '--upload', '--category', 'vehicle', '--limit', '10') }
+)
+
 # 무거운 — 매일 1~2회
 $slowJobs = @(
   @{ name='detail-real';     cmdArgs=@('collectors/court-detail-collect.js',  '--upsert', '--limit', '100', '--category', 'real_estate') },
@@ -79,6 +87,8 @@ while ($true) {
     $jobs = $fastJobs + $selfJobs
   } elseif ($Mode -eq 'slow') {
     $jobs = $slowJobs
+  } elseif ($Mode -eq 'spcfc') {
+    $jobs = $spcfcJobs
   } else {
     # full: 매 사이클 fast+self, 24사이클(약 12시간)마다 slow 추가
     $jobs = $fastJobs + $selfJobs
