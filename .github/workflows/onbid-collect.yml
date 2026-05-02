@@ -14,7 +14,7 @@ jobs:
   collect:
     name: 온비드 공매 차량 목록 수집·보강
     runs-on: ubuntu-latest
-    timeout-minutes: 40   # 부동산 1500건+ 처리 14분+, 차량 293건 1분, 마진 포함
+    timeout-minutes: 60   # 부동산 1500건+ 처리 14분+, 차량 293건 1분. 5/2 40분 timeout 초과 빈발 → 60분으로 상향
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -17,7 +17,7 @@ jobs:
   detail-bulk:
     name: detail-collect 200건
     runs-on: ubuntu-latest
-    timeout-minutes: 45   # detail 200건 + tenant-from-curst 200건 직렬 — 마진 추가
+    timeout-minutes: 75   # detail 200건 + tenant-from-curst 200건 직렬. 5/2 45분 timeout 초과 빈발 → 75분으로 상향
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
