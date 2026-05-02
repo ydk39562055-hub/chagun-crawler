@@ -1,0 +1,57 @@
+name: 백필 진척 모니터 (매일)
+
+# 매일 KST 09:00 (UTC 00:00) 90일 윈도우 백필 진척률을 issue로 기록.
+# 트렌드 추적용 — 어제 대비 얼마나 채워졌는지 사용자가 보기 위한 정기 보고.
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # 매일 UTC 00:00 = KST 09:00
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  progress:
+    name: 백필 진척률 측정
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci
+        working-directory: scripts
+
+      - name: 백필 stats 실행
+        id: stats
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node backfill-stats.mjs > stats.txt 2>&1
+          cat stats.txt
+
+      - name: Issue 작성
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(TZ=Asia/Seoul date +%Y-%m-%d)
+          {
+            echo "## 백필 진척률 — ${DATE}"
+            echo ""
+            echo '```'
+            cat scripts/stats.txt
+            echo '```'
+            echo ""
+            echo "_매일 KST 09:00 자동 기록. 어제 issue 와 비교해 증가폭 확인._"
+          } > body.md
+          gh issue create -R "ydk39562055-hub/chagun-crawler" \
+            --title "📊 백필 진척률 (${DATE})" \
+            --body-file body.md \
+            --label "monitoring"
