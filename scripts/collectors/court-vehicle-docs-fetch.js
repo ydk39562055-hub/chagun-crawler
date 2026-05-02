@@ -209,10 +209,10 @@ async function processCase(ctx, supabase, item, tmpDl) {
     return { path: p, bytes: buf.length, filename, captured_at: new Date().toISOString() };
   }
 
-  let thumbnailUrl = null;
   if (out.aeeWevl) {
     update._detail.aeeWevlPdf = await uploadPdf('aee-wevl', out.aeeWevl.buf, out.aeeWevl.filename);
     // 감정평가서 PDF 내부 사진 추출 → auction-photos 업로드
+    // 단 thumbnail_url 은 박지 않음 — photos-from-page가 진짜 페이지 사진을 채울 때까지 양보
     try {
       const extracted = await extractFromPdf(out.aeeWevl.buf);
       if (extracted.length > 0) {
@@ -221,8 +221,7 @@ async function processCase(ctx, supabase, item, tmpDl) {
           update._photos = photoMeta;
           update._photos_source = 'aeeWevl_pdf';
           update._photos_extracted_at = new Date().toISOString();
-          thumbnailUrl = photoMeta[0].url;
-          console.log(`    photos ${photoMeta.length}장 추출·업로드`);
+          console.log(`    photos ${photoMeta.length}장 추출·업로드 (thumbnail_url은 진짜 사진 도착 대기)`);
         }
       } else {
         console.log(`    photos 0장 (PDF 내부에 사용 가능한 사진 없음)`);
@@ -262,7 +261,6 @@ async function processCase(ctx, supabase, item, tmpDl) {
   }
 
   const dbPatch = { raw_data: update };
-  if (thumbnailUrl) dbPatch.thumbnail_url = thumbnailUrl;
   const { error: dbErr } = await supabase.from('auction_items').update(dbPatch).eq('id', item.id);
   if (dbErr) throw new Error('db-' + dbErr.message);
 

@@ -200,9 +200,11 @@ async function processOne(ctx, supabase, item) {
   newRaw._photos = photoMeta;
   newRaw._photos_source = 'detail_page';
   newRaw._photos_extracted_at = new Date().toISOString();
-  if (photoMeta[0]) newRaw.thumbnailUrl = photoMeta[0].url;
 
-  const { error } = await supabase.from('auction_items').update({ raw_data: newRaw }).eq('id', item.id);
+  // 실제 DB 컬럼 thumbnail_url 도 함께 업데이트 (이전에는 raw_data.thumbnailUrl camelCase 만 박혀 list에 반영 안 됐음)
+  const dbPatch = { raw_data: newRaw };
+  if (photoMeta[0]) dbPatch.thumbnail_url = photoMeta[0].url;
+  const { error } = await supabase.from('auction_items').update(dbPatch).eq('id', item.id);
   if (error) return { ok: false, reason: 'db-' + error.message };
   return { ok: true, count: photoMeta.length };
 }
@@ -222,7 +224,8 @@ async function main() {
     .lte('auction_date', future.toISOString())
     .order('auction_date', { ascending: true });
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
-  else q = q.is('raw_data->_photos_source', null); // 아직 페이지 사진 없는 건만
+  // detail_page 가 아닌 매물은 모두 대상 — _photos_source IS NULL 또는 aeeWevl_pdf(흐릿한 PDF 사진을 진짜 페이지 사진으로 교체)
+  else q = q.or('raw_data->_photos_source.is.null,raw_data->_photos_source.eq."aeeWevl_pdf"');
   const { data, error } = await q.limit(LIMIT * 3);
   if (error) { console.error(error); process.exit(1); }
   console.log(`대상 ${data.length}건`);
