@@ -6,7 +6,7 @@ name: 법원경매 차량 매일 수집
 
 on:
   schedule:
-    - cron: '30 */6 * * *'   # 매 6시간 (UTC 20:30, 02:30, 08:30, 14:30 = KST 05:30/11:30/17:30/23:30)
+    - cron: '30 */3 * * *'   # 매 3시간 (백필 가속 — 5/3 6시간→3시간)
   workflow_dispatch:
 
 concurrency:
@@ -68,4 +68,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-vehicle-photos-from-page.js --upload --limit 15
+        run: node collectors/court-vehicle-photos-from-page.js --upload --limit 30

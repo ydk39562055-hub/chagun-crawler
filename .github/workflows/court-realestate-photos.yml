@@ -5,7 +5,7 @@ name: 법원경매 부동산 페이지 사진 백필 (매 4시간)
 
 on:
   schedule:
-    - cron: '40 */4 * * *'   # 매 4시간 :40 (다른 워크플로와 시간 분리)
+    - cron: '40 */2 * * *'   # 매 2시간 :40 (백필 가속 — 5/3 4시간→2시간)
   workflow_dispatch:
 
 concurrency:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   realestate-photos:
-    name: 부동산 페이지 사진 15건
+    name: 부동산 페이지 사진 30건
     runs-on: ubuntu-latest
     timeout-minutes: 60   # Playwright + 사건당 25~35초 (15건 = 약 8~10분)
     steps:
@@ -35,4 +35,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node collectors/court-realestate-photos-from-page.js --upload --limit 15
+        run: node collectors/court-realestate-photos-from-page.js --upload --limit 30
