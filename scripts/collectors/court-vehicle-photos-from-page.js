@@ -217,12 +217,12 @@ async function main() {
   const future = new Date(); future.setDate(future.getDate() + 30);
 
   let q = supabase.from('auction_items')
-    .select('id, case_number, raw_data, auction_date')
+    .select('id, case_number, raw_data, auction_date, created_at')
     .eq('source', 'court_auction').eq('category', 'vehicle')
     .not('raw_data->boCd', 'is', null)
     .gte('auction_date', tomorrow.toISOString())
     .lte('auction_date', future.toISOString())
-    .order('auction_date', { ascending: true });
+    .order('created_at', { ascending: false });   // 신규 매물 우선
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
   // detail_page 가 아닌 매물은 모두 대상 — _photos_source IS NULL 또는 aeeWevl_pdf(흐릿한 PDF 사진을 진짜 페이지 사진으로 교체)
   else q = q.or('raw_data->_photos_source.is.null,raw_data->_photos_source.eq."aeeWevl_pdf"');

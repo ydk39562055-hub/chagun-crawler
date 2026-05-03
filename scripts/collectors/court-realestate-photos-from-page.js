@@ -170,14 +170,15 @@ async function main() {
   const future = new Date(); future.setDate(future.getDate() + 90);
 
   let q = supabase.from('auction_items')
-    .select('id, case_number, raw_data, auction_date')
+    .select('id, case_number, raw_data, auction_date, created_at')
     .eq('source', 'court_auction').eq('category', 'real_estate')
     .not('raw_data->boCd', 'is', null)
     .gte('auction_date', today)
     .lte('auction_date', future.toISOString().slice(0, 10))
-    .order('auction_date', { ascending: true });
+    .order('created_at', { ascending: false });   // 신규 매물 우선 — 사용자 사이트 보면 신규 매물이 항상 사진 있어야
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
-  else q = q.like('thumbnail_url', '%courtauction.go.kr%'); // court 직접 URL인 깨진 매물만
+  // 사진 없거나(NEW), court 직접 URL(404 깨짐) 매물 둘 다 대상
+  else q = q.or('thumbnail_url.is.null,thumbnail_url.like.%courtauction.go.kr%');
   const { data, error } = await q.limit(LIMIT * 3);
   if (error) { console.error(error); process.exit(1); }
   console.log(`대상 ${data.length}건`);
