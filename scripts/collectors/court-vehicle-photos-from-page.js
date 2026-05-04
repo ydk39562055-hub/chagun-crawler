@@ -223,7 +223,10 @@ async function main() {
     .not('raw_data->boCd', 'is', null)
     .gte('auction_date', tomorrow.toISOString())
     .lte('auction_date', future.toISOString())
-    .order('created_at', { ascending: false });   // 신규 매물 우선
+    // 사이트 list 페이지가 auction_date asc 정렬이라 같은 순서로 처리해서 첫 페이지에 사진 채움
+    // tie-breaker: 같은 매각일이면 신규 매물 먼저
+    .order('auction_date', { ascending: true })
+    .order('created_at', { ascending: false });
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
   // detail_page 가 아닌 매물은 모두 대상 — _photos_source IS NULL 또는 aeeWevl_pdf(흐릿한 PDF 사진을 진짜 페이지 사진으로 교체)
   else q = q.or('raw_data->_photos_source.is.null,raw_data->_photos_source.eq."aeeWevl_pdf"');

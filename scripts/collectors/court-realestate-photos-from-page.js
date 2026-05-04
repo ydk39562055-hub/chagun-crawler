@@ -175,7 +175,10 @@ async function main() {
     .not('raw_data->boCd', 'is', null)
     .gte('auction_date', today)
     .lte('auction_date', future.toISOString().slice(0, 10))
-    .order('created_at', { ascending: false });   // 신규 매물 우선 — 사용자 사이트 보면 신규 매물이 항상 사진 있어야
+    // 사이트 list 페이지가 auction_date asc 정렬이라 같은 순서로 처리해서 첫 페이지에 사진 채움
+    // tie-breaker: 같은 매각일이면 신규 매물 먼저
+    .order('auction_date', { ascending: true })
+    .order('created_at', { ascending: false });
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
   // 사진 없거나(NEW), court 직접 URL(404 깨짐) 매물 둘 다 대상
   else q = q.or('thumbnail_url.is.null,thumbnail_url.like.%courtauction.go.kr%');
