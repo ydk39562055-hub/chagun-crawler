@@ -77,19 +77,20 @@ async function fetchOne(ctx, { jiwonNm, year, csNum, kind }, tmpDl) {
   page.on('dialog', async d => { try { await d.accept(); } catch {} });
 
   try {
+    // GH runner는 한국 IP보다 느려 dropdown options이 30초 안에 안 차는 경우 빈발 → timeout 90s
     await page.goto('https://www.courtauction.go.kr/pgj/index.on', { waitUntil: 'domcontentloaded' });
-    await sleep(1500);
-    await page.goto('https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml', { waitUntil: 'networkidle' });
     await sleep(2000);
+    await page.goto('https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml', { waitUntil: 'networkidle' });
+    await sleep(3000);
 
-    await page.selectOption('#mf_wfm_mainFrame_sbx_auctnCsSrchCortOfc', { value: jiwonNm });
-    await sleep(150);
-    await page.selectOption('#mf_wfm_mainFrame_sbx_auctnCsSrchCsYear', { value: String(year) });
-    await sleep(150);
-    await page.fill('#mf_wfm_mainFrame_ibx_auctnCsSrchCsNo', String(csNum));
+    await page.selectOption('#mf_wfm_mainFrame_sbx_auctnCsSrchCortOfc', { value: jiwonNm }, { timeout: 90000 });
     await sleep(200);
+    await page.selectOption('#mf_wfm_mainFrame_sbx_auctnCsSrchCsYear', { value: String(year) }, { timeout: 90000 });
+    await sleep(200);
+    await page.fill('#mf_wfm_mainFrame_ibx_auctnCsSrchCsNo', String(csNum));
+    await sleep(300);
     await page.click('#mf_wfm_mainFrame_btn_auctnCsSrchBtn');
-    await sleep(5000);
+    await sleep(8000);   // GH 느림 대비 5s→8s
 
     const hasError = await page.evaluate(() => (document.body.innerText || '').includes('잘못된 번호'));
     if (hasError) throw new Error('invalid-case-number');

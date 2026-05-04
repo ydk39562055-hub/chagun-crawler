@@ -38,14 +38,15 @@ async function fetchPagePhotos(ctx, { jiwonNm, year, csNum }) {
   const page = await ctx.newPage();
   page.on('dialog', async d => { try { await d.accept(); } catch {} });
   try {
+    // GH runner 느림 대비: page load 마진 + selectOption timeout 90s
     await page.goto('https://www.courtauction.go.kr/pgj/index.on', { waitUntil: 'domcontentloaded' });
-    await sleep(1000);
+    await sleep(2000);
     await page.goto('https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ154M00.xml', { waitUntil: 'networkidle' });
-    await sleep(2500);
+    await sleep(3500);
 
-    await page.selectOption('#mf_wfm_mainFrame_sbx_carTmidCortOfc', { label: jiwonNm });
+    await page.selectOption('#mf_wfm_mainFrame_sbx_carTmidCortOfc', { label: jiwonNm }, { timeout: 90000 });
     await sleep(250);
-    await page.selectOption('#mf_wfm_mainFrame_sbx_carTmidCsNo', { value: String(year) });
+    await page.selectOption('#mf_wfm_mainFrame_sbx_carTmidCsNo', { value: String(year) }, { timeout: 90000 });
     await sleep(250);
     await page.fill('#mf_wfm_mainFrame_ibx_csNo', String(csNum));
     await sleep(250);
