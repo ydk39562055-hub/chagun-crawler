@@ -135,15 +135,43 @@ function toAuctionItem(row) {
   };
 }
 
+// 온비드 부동산 카테고리(국문) → DB enum 매핑
+// scls(소분류) 우선, 없으면 mcls(중분류)로 폴백.
+const SCLS_TO_TYPE = {
+  '아파트': 'apartment',
+  '오피스텔': 'officetel',
+  '연립주택': 'multi_family',
+  '다세대주택': 'multi_family',
+  '다가구주택': 'multi_family',
+  '도시형생활주택': 'multi_family',
+  '기숙사': 'multi_family',
+  '단독주택': 'house',
+  '기타주거용건물': 'house',
+  '상가주택': 'house',
+};
+const MCLS_TO_TYPE = {
+  '주거용건물': 'house',
+  '상가용및업무용건물': 'commercial',
+  '용도복합용건물': 'commercial',
+  '산업용및기타특수용건물': 'commercial',
+  '토지': 'land',
+};
+function mapPropertyType(row) {
+  const scls = row.cltrUsgSclsCtgrNm;
+  if (scls && SCLS_TO_TYPE[scls]) return SCLS_TO_TYPE[scls];
+  const mcls = row.cltrUsgMclsCtgrNm;
+  if (mcls && MCLS_TO_TYPE[mcls]) return MCLS_TO_TYPE[mcls];
+  return 'etc';
+}
+
 function toRealEstateDetail(row, auctionItemId) {
   return {
     auction_item_id: auctionItemId,
-    property_type: row.cltrTpNm || row.cltrMnmId || null,
+    property_type: mapPropertyType(row),
     floor: row.flrCnt || null,
-    area_m2: Number(row.bldArea ?? row.totArea) || null,
-    land_area_m2: Number(row.lndAr) || null,
-    building_year: Number(row.bldngCmpltYr) || null,
-    raw_detail: row,
+    area_m2: Number(row.bldSqms ?? row.bldArea ?? row.totArea) || null,
+    land_area_m2: Number(row.landSqms ?? row.lndAr) || null,
+    build_year: Number(row.bldngCmpltYr) || null,
   };
 }
 
