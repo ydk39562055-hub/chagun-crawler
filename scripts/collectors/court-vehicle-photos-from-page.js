@@ -229,8 +229,8 @@ async function main() {
     .order('created_at', { ascending: false });
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
   // detail_page 가 아닌 매물은 모두 대상 — _photos_source IS NULL 또는 aeeWevl_pdf(흐릿한 PDF 사진을 진짜 페이지 사진으로 교체)
-  // ->> 는 text, -> 는 jsonb. or() 안에서는 text 비교가 안전.
-  else q = q.or('raw_data->>_photos_source.is.null,raw_data->>_photos_source.eq.aeeWevl_pdf');
+  // PostgREST or() 안에서 ->> 가 jsonb로 처리되는 케이스가 있어 값에 큰따옴표(JSON 문자열) 필수.
+  else q = q.or('raw_data->>_photos_source.is.null,raw_data->>_photos_source.eq."aeeWevl_pdf"');
   const { data, error } = await q.limit(LIMIT * 3);
   if (error) { console.error(error); process.exit(1); }
   console.log(`대상 ${data.length}건`);
