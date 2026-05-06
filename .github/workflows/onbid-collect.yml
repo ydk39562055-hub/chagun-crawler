@@ -14,7 +14,7 @@ jobs:
   collect:
     name: 온비드 공매 차량 목록 수집·보강
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # 부동산 1500건+ 처리 14분+, 차량 293건 1분. 5/2 40분 timeout 초과 빈발 → 60분으로 상향
+    timeout-minutes: 120  # property_type 매핑 fix 후 부동산 정상 upsert(7800건+, 5/6 78페이지에서 60분 초과). public 레포라 Actions 분 제한 X → 120분 안전마진
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
