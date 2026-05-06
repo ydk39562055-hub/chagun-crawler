@@ -44,7 +44,10 @@ $fastJobs = @(
   @{ name='docs-snap';       cmdArgs=@('collectors/court-docs-snap.js',       '--upload', '--limit', '10') },
   @{ name='photo-rehost';    cmdArgs=@('collectors/court-photo-rehost.js',    '--upload', '--limit', '10') },
   @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '50') },
-  # 차량 사진은 court 직접 URL이 96% 404 → photos-from-page로 다시 수집
+  # 차량 docs-fetch (PDF→사진 추출 포함). GH에서는 PDF download-timeout (IP 차단)
+  # 5/6 확인. 로컬에서만 가능. fast 모드에 추가해 PC 켜진 동안 자동 백필
+  @{ name='vehicle-docs';    cmdArgs=@('collectors/court-vehicle-docs-fetch.js', '--upload', '--limit', '20') },
+  # 차량 페이지 사진 — PGJ154M00 검색이 GH/로컬 모두 빈 결과 잦지만 가끔 hit
   @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '10') },
   # 부동산 사진도 같은 패턴 (페이지 base64 캡처)
   @{ name='realestate-photos'; cmdArgs=@('collectors/court-realestate-photos-from-page.js', '--upload', '--limit', '10') }
@@ -65,11 +68,10 @@ $spcfcJobs = @(
   @{ name='spcfc-vehicle';   cmdArgs=@('collectors/court-spcfc-fetch.js',     '--upload', '--category', 'vehicle', '--limit', '10') }
 )
 
-# 무거운 — 매일 1~2회
+# 무거운 — 매일 1~2회 (vehicle-docs 는 fastJobs 로 옮김)
 $slowJobs = @(
   @{ name='detail-real';     cmdArgs=@('collectors/court-detail-collect.js',  '--upsert', '--limit', '100', '--category', 'real_estate') },
   @{ name='detail-vehicle';  cmdArgs=@('collectors/court-detail-collect.js',  '--upsert', '--limit', '100', '--category', 'vehicle') },
-  @{ name='vehicle-docs';    cmdArgs=@('collectors/court-vehicle-docs-fetch.js',  '--upload', '--limit', '4') },
   @{ name='vehicle-snap';    cmdArgs=@('collectors/court-docs-snap.js',           '--upload', '--category', 'vehicle', '--limit', '6') },
   @{ name='onbid-vehicle';   cmdArgs=@('collectors/onbid-vehicle-list.js',    '--upsert', '--all') },
   @{ name='onbid-vehicle-enrich'; cmdArgs=@('collectors/onbid-vehicle-enrich.js', '--upsert') },
