@@ -193,7 +193,7 @@ async function processCase(ctx, supabase, item, tmpDl) {
     } catch (e) {
       console.log(`    ${kind} SKIP: ${e.message.slice(0, 80)}`);
     }
-    await sleep(rand(2000, 3500));
+    await sleep(rand(500, 1200));
   }
 
   if (Object.keys(out).length === 0) return { ok: false, reason: 'nothing-captured' };
@@ -286,7 +286,12 @@ async function main() {
     .order('auction_date', { ascending: true, nullsFirst: false })
     .limit(LIMIT * 2);
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
-  else q = q.gte('auction_date', today).lte('auction_date', window90Iso);
+  else {
+    q = q.gte('auction_date', today).lte('auction_date', window90Iso);
+    // 이미 aeeWevl PDF가 다운된 매물은 skip — 가장 비싼 단계 회피.
+    // --redo 옵션으로 강제 재처리 가능.
+    if (!args.includes('--redo')) q = q.is('raw_data->_detail->aeeWevlPdf', null);
+  }
   const { data, error } = await q;
   if (error) { console.error(error); process.exit(1); }
 
