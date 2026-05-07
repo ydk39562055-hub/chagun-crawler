@@ -118,7 +118,12 @@ async function rehostOne(cookie, supabase, item) {
       rehosted_at: new Date().toISOString(),
       bytes: u.bytes,
     }));
-    const newRaw = { ...raw, _photos: newPhotos };
+    const newRaw = {
+      ...raw,
+      _photos: newPhotos,
+      _photos_source: 'court_csPicLst',
+      _photos_extracted_at: new Date().toISOString(),
+    };
     const { error } = await supabase.from('auction_items')
       .update({ raw_data: newRaw, thumbnail_url: newPhotos[0]?.url ?? null })
       .eq('id', item.id);

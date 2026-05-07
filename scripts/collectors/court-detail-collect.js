@@ -201,17 +201,22 @@ async function main() {
         if (ar.status === 200) aeeWevl = ar.data;
       } catch {}
 
-      // 기존 supabase-hosted _photos가 있으면 보존 (court-photo-rehost 결과 덮어쓰기 방지)
+      // 기존 supabase-hosted _photos가 있으면 보존 (court-photo-rehost / vehicle-docs PDF 사진 덮어쓰기 방지)
       const existingPhotos = Array.isArray(raw._photos) ? raw._photos : [];
       const isRehosted = existingPhotos.some(p => String(p?.url ?? '').startsWith(process.env.SUPABASE_URL || 'https://oykzyilxxfmttcudqojf.supabase.co'));
       const keepPhotos = isRehosted ? existingPhotos : photos;
       const keepThumb = isRehosted ? (existingPhotos[0]?.url ?? null) : (photos[0]?.url ?? null);
+      // _photos_source 라벨: 보존 케이스는 raw 의 source 유지(spread 로). 새 fetch 케이스는 'court_csPicLst' 로 설정.
+      const photosSource = isRehosted
+        ? (raw._photos_source ?? 'court_csPicLst')
+        : (photos.length > 0 ? 'court_csPicLst' : (raw._photos_source ?? null));
 
       if (DO_UPSERT) {
         const { error: upErr } = await supabase.from('auction_items').update({
           raw_data: {
             ...raw,
             _photos: keepPhotos,
+            _photos_source: photosSource,
             _detail: {
               ...(raw._detail ?? {}), // 기존 PDF 참조·요약(dspslGdsSpcfcPdf, rgstSummary, rgstRcrdPdf 등) 보존
               base,
