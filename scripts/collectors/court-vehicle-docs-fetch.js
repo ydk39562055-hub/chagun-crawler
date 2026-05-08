@@ -291,6 +291,8 @@ async function main() {
     // 이미 aeeWevl PDF가 다운된 매물은 skip — 가장 비싼 단계 회피.
     // --redo 옵션으로 강제 재처리 가능.
     if (!args.includes('--redo')) q = q.is('raw_data->_detail->aeeWevlPdf', null);
+    // --sudogwon 옵션: 서울/경기/인천만
+    if (args.includes('--sudogwon')) q = q.in('sido', ['서울특별시', '경기도', '인천광역시']);
   }
   const { data, error } = await q;
   if (error) { console.error(error); process.exit(1); }

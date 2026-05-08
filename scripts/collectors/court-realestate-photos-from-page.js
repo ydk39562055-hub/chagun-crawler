@@ -180,8 +180,12 @@ async function main() {
     .order('auction_date', { ascending: true })
     .order('created_at', { ascending: false });
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
-  // 사진 없거나(NEW), court 직접 URL(404 깨짐) 매물 둘 다 대상
-  else q = q.or('thumbnail_url.is.null,thumbnail_url.like.%courtauction.go.kr%');
+  else {
+    // 사진 없거나(NEW), court 직접 URL(404 깨짐) 매물 둘 다 대상
+    q = q.or('thumbnail_url.is.null,thumbnail_url.like.%courtauction.go.kr%');
+    // --sudogwon: 서울/경기/인천만
+    if (args.includes('--sudogwon')) q = q.in('sido', ['서울특별시', '경기도', '인천광역시']);
+  }
   const { data, error } = await q.limit(LIMIT * 3);
   if (error) { console.error(error); process.exit(1); }
   console.log(`대상 ${data.length}건`);
