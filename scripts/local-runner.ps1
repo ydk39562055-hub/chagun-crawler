@@ -35,22 +35,17 @@ function Run-Collector {
 
 # === collector 그룹 정의 (GH Actions 워크플로 매칭) ===
 
-# 가벼운 — 매시간/30분
+# 가벼운 — 매시간 1사이클. 5/8 IP 차단 사례 후 limit 보수적으로 조정.
 $fastJobs = @(
-  @{ name='spcfc-real';      cmdArgs=@('collectors/court-spcfc-fetch.js',     '--upload', '--limit', '10') },
-  @{ name='spcfc-vehicle';   cmdArgs=@('collectors/court-spcfc-fetch.js',     '--upload', '--category', 'vehicle', '--limit', '10') },
-  # 매각PDF 받은 직후 즉시 2차 등기요약(atSale) 추출
-  @{ name='rgst-extract';    cmdArgs=@('collectors/court-rgst-extract.js',    '--upload', '--limit', '50') },
-  @{ name='docs-snap';       cmdArgs=@('collectors/court-docs-snap.js',       '--upload', '--limit', '10') },
-  @{ name='photo-rehost';    cmdArgs=@('collectors/court-photo-rehost.js',    '--upload', '--limit', '10') },
-  @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '50') },
-  # 차량 docs-fetch (PDF→사진 추출 포함). GH에서는 PDF download-timeout (IP 차단)
-  # 5/6 확인. 로컬에서만 가능. fast 모드에 추가해 PC 켜진 동안 자동 백필
-  @{ name='vehicle-docs';    cmdArgs=@('collectors/court-vehicle-docs-fetch.js', '--upload', '--limit', '20') },
-  # 차량 페이지 사진 — PGJ154M00 검색이 GH/로컬 모두 빈 결과 잦지만 가끔 hit
-  @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '10') },
-  # 부동산 사진도 같은 패턴 (페이지 base64 캡처)
-  @{ name='realestate-photos'; cmdArgs=@('collectors/court-realestate-photos-from-page.js', '--upload', '--limit', '10') }
+  @{ name='spcfc-real';      cmdArgs=@('collectors/court-spcfc-fetch.js',     '--upload', '--limit', '5') },
+  @{ name='spcfc-vehicle';   cmdArgs=@('collectors/court-spcfc-fetch.js',     '--upload', '--category', 'vehicle', '--limit', '5') },
+  @{ name='rgst-extract';    cmdArgs=@('collectors/court-rgst-extract.js',    '--upload', '--limit', '30') },
+  @{ name='docs-snap';       cmdArgs=@('collectors/court-docs-snap.js',       '--upload', '--limit', '5') },
+  @{ name='photo-rehost';    cmdArgs=@('collectors/court-photo-rehost.js',    '--upload', '--limit', '5') },
+  @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '20') },
+  @{ name='vehicle-docs';    cmdArgs=@('collectors/court-vehicle-docs-fetch.js', '--upload', '--limit', '10') },
+  @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '5') },
+  @{ name='realestate-photos'; cmdArgs=@('collectors/court-realestate-photos-from-page.js', '--upload', '--limit', '5') }
 )
 
 # 호출0 자체처리 — 가벼움 매시간 가능
@@ -102,10 +97,12 @@ while ($true) {
 
   foreach ($j in $jobs) {
     Run-Collector -name $j.name -cmdArgs $j.cmdArgs
+    # 5/8 IP 차단 사후 — 잡 간 60초 휴식으로 burst 완화
+    Start-Sleep -Seconds 60
   }
 
   if ($Once) { break }
 
-  Write-Host "=== 사이클 $cycleCount 완료, 30분 대기 ==="
-  Start-Sleep -Seconds 1800
+  Write-Host "=== 사이클 $cycleCount 완료, 60분 대기 ==="
+  Start-Sleep -Seconds 3600
 }

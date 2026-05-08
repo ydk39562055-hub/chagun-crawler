@@ -193,7 +193,7 @@ async function processCase(ctx, supabase, item, tmpDl) {
     } catch (e) {
       console.log(`    ${kind} SKIP: ${e.message.slice(0, 80)}`);
     }
-    await sleep(rand(500, 1200));
+    await sleep(rand(1500, 3000));
   }
 
   if (Object.keys(out).length === 0) return { ok: false, reason: 'nothing-captured' };
