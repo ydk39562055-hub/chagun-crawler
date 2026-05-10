@@ -104,6 +104,7 @@ async function main() {
   }
   if (CATEGORY !== 'all') q = q.eq('category', CATEGORY);
   if (CASE_NUMBER) q = q.eq('case_number', CASE_NUMBER);
+  if (args.includes('--sudogwon')) q = q.in('sido', ['서울특별시', '경기도', '인천광역시']);
   const { data: items, error: qErr } = await q;
 
   if (qErr) { console.error('DB 조회 실패:', qErr.message); process.exit(1); }

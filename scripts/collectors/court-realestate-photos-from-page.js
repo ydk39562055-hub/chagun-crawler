@@ -210,8 +210,11 @@ async function main() {
           if (!/no-imgs|missing-ids/.test(r.reason)) consec++;
         }
       } catch (e) {
-        console.log(`[FAIL] ${it.case_number} ${e.message.slice(0, 80)}`);
-        fail++; consec++;
+        const msg = e.message;
+        console.log(`[FAIL] ${it.case_number} ${msg.slice(0, 80)}`);
+        fail++;
+        // 사진 자체가 없는 매물은 detail 버튼이 안 떠서 매번 같은 throw — 차단 아님
+        if (!/no-detail-btn|missing-jiwonNm-or-caseno/.test(msg)) consec++;
       }
       if (consec >= 3) { console.log('3건 연속 차단성 실패 → 중단'); break; }
       await sleep(rand(3000, 5000));

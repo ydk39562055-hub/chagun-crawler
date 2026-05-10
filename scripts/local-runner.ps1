@@ -42,9 +42,9 @@ $fastJobs = @(
   @{ name='rgst-extract';    cmdArgs=@('collectors/court-rgst-extract.js',    '--upload', '--limit', '30') },
   @{ name='docs-snap';       cmdArgs=@('collectors/court-docs-snap.js',       '--upload', '--limit', '5') },
   @{ name='photo-rehost';    cmdArgs=@('collectors/court-photo-rehost.js',    '--upload', '--limit', '5') },
-  @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '20') },
+  @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '10') },
   @{ name='vehicle-docs';    cmdArgs=@('collectors/court-vehicle-docs-fetch.js', '--upload', '--limit', '10') },
-  @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '5') },
+  @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '3') },
   @{ name='realestate-photos'; cmdArgs=@('collectors/court-realestate-photos-from-page.js', '--upload', '--limit', '5') }
 )
 
