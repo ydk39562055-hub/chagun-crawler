@@ -153,21 +153,37 @@ async function processOne(ctx, supabase, item) {
   }
   if (!photoMeta.length) return { ok: false, reason: 'all-decode-fail' };
 
-  const newRaw = { ...raw, _photos: photoMeta, _photos_source: 'detail_page', _photos_extracted_at: new Date().toISOString() };
-  const { error } = await supabase.from('auction_items').update({
-    raw_data: newRaw,
-    thumbnail_url: photoMeta[0].url,
-  }).eq('id', item.id);
-  if (error) return { ok: false, reason: 'db-' + error.message };
-  return { ok: true, count: photoMeta.length };
+  // 일괄매각 multi-row: 같은 case_number 모든 row 에 _photos / thumbnail 동기화.
+  // 안 그러면 화면 카드가 다른 row 를 잡았을 때 사진 안 보임.
+  const { data: siblings, error: sibErr } = await supabase
+    .from('auction_items')
+    .select('id, raw_data')
+    .eq('case_number', item.case_number)
+    .eq('source', 'court_auction')
+    .eq('category', 'real_estate');
+  if (sibErr) return { ok: false, reason: 'db-sib-' + sibErr.message };
+
+  const extractedAt = new Date().toISOString();
+  let updatedRows = 0;
+  for (const sib of siblings ?? []) {
+    const sibRaw = { ...(sib.raw_data ?? {}), _photos: photoMeta, _photos_source: 'detail_page', _photos_extracted_at: extractedAt };
+    const { error } = await supabase.from('auction_items')
+      .update({ raw_data: sibRaw, thumbnail_url: photoMeta[0].url })
+      .eq('id', sib.id);
+    if (error) console.log(`    sibling ${sib.id.slice(0,8)} FAIL: ${error.message}`);
+    else updatedRows++;
+  }
+  return { ok: true, count: photoMeta.length, rows: updatedRows };
 }
 
 async function main() {
   console.log(`Court Realestate Photos from Page (upload=${DO_UPLOAD}, limit=${LIMIT}${CASE_NUMBER ? ', case=' + CASE_NUMBER : ''})`);
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+  // 윈도우 30일: 가까운 매물부터 빠르게 채우기 위해 90→30 으로 좁힘.
+  // 풀이 5천건대로 줄어서 limit 30 페이스로 며칠 안에 완료 가능.
   const today = new Date().toISOString().slice(0, 10);
-  const future = new Date(); future.setDate(future.getDate() + 90);
+  const future = new Date(); future.setDate(future.getDate() + 30);
 
   let q = supabase.from('auction_items')
     .select('id, case_number, raw_data, auction_date, created_at')
@@ -186,7 +202,8 @@ async function main() {
     // --sudogwon: 서울/경기/인천만
     if (args.includes('--sudogwon')) q = q.in('sido', ['서울특별시', '경기도', '인천광역시']);
   }
-  const { data, error } = await q.limit(LIMIT * 3);
+  // multi-row case_number 중복 처리 + fail/SKIP 여유 위해 후보 풀을 LIMIT * 5 로 확보.
+  const { data, error } = await q.limit(LIMIT * 5);
   if (error) { console.error(error); process.exit(1); }
   console.log(`대상 ${data.length}건`);
 
@@ -195,13 +212,17 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 2400 }, locale: 'ko-KR' });
   let ok = 0, fail = 0, consec = 0;
+  // 같은 case_number 가 multi-row 로 후보에 여러 번 들어와도 한 번만 처리. 처리 시 모든 row 동기화됨.
+  const processedCases = new Set();
   try {
     for (const it of data) {
       if (ok >= LIMIT) break;
+      if (processedCases.has(it.case_number)) continue;
+      processedCases.add(it.case_number);
       try {
         const r = await processOne(ctx, supabase, it);
         if (r.ok) {
-          console.log(`[OK] ${it.case_number} ${r.count}장${r.dry ? ' (dry)' : ''}`);
+          console.log(`[OK] ${it.case_number} ${r.count}장 (${r.rows ?? 1}개 row 동기화)${r.dry ? ' (dry)' : ''}`);
           if (r.sample) for (const s of r.sample) console.log(`  - ${s}`);
           ok++; consec = 0;
         } else {

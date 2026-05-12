@@ -42,10 +42,12 @@ $fastJobs = @(
   @{ name='rgst-extract';    cmdArgs=@('collectors/court-rgst-extract.js',    '--upload', '--limit', '30') },
   @{ name='docs-snap';       cmdArgs=@('collectors/court-docs-snap.js',       '--upload', '--limit', '5') },
   @{ name='photo-rehost';    cmdArgs=@('collectors/court-photo-rehost.js',    '--upload', '--limit', '5') },
-  @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '10') },
+  # docs-fetch: 로컬 IP가 streamdocs 에 ct-text/html 차단 반복 — 5/12 부동산 감정평가서 0% 백필.
+  # GH Actions 워크플로 (court-docs-fetch-bulk.yml, 매 2시간) 한 곳으로만 처리. 로컬에서는 제외.
+  # @{ name='docs-fetch';      cmdArgs=@('collectors/court-docs-fetch.js',      '--upload', '--limit', '10') },
   @{ name='vehicle-docs';    cmdArgs=@('collectors/court-vehicle-docs-fetch.js', '--upload', '--limit', '10') },
   @{ name='vehicle-photos';  cmdArgs=@('collectors/court-vehicle-photos-from-page.js', '--upload', '--limit', '3') },
-  @{ name='realestate-photos'; cmdArgs=@('collectors/court-realestate-photos-from-page.js', '--upload', '--limit', '5') }
+  @{ name='realestate-photos'; cmdArgs=@('collectors/court-realestate-photos-from-page.js', '--upload', '--limit', '30') }
 )
 
 # 호출0 자체처리 — 가벼움 매시간 가능
